@@ -174,11 +174,25 @@ services:
   ingestion-gateway:
     profiles: [services, all]
     build: ./services/ingestion-gateway
+    depends_on:
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+      control-api:
+        condition: service_healthy
     ports:
       - "${INGESTION_GATEWAY_PORT:-8081}:8081"
     environment:
       SERVICE_NAME: ingestion-gateway
       HTTP_ADDR: ":8081"
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BROKERS: redpanda:9092
+      CONTROL_API_URL: http://control-api:8000
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-dev-internal-secret-change-me}
     healthcheck:
       <<: *health-defaults
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8081/healthz"]
@@ -186,9 +200,20 @@ services:
   stream-processor:
     profiles: [services, all]
     build: ./services/stream-processor
+    depends_on:
+      timescale:
+        condition: service_healthy
+      timescale-migrate:
+        condition: service_completed_successfully
+      redpanda:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
     environment:
       SERVICE_NAME: stream-processor
       HTTP_ADDR: "0.0.0.0:8091"
+      KAFKA_BROKERS: redpanda:9092
+      TIMESCALE_URL: postgres://${TIMESCALE_USER:-mimicron}:${TIMESCALE_PASSWORD:-mimicron_dev}@timescale:5432/${TIMESCALE_DB:-mimicron_ts}
     healthcheck:
       <<: *health-defaults
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8091/healthz"]

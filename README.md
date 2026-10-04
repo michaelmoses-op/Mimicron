@@ -33,5 +33,8 @@ Service ports: control-api `8000`, ingestion-gateway `8081`, stream-gateway `808
 ## Milestone status
 
 - **M0 (foundation):** monorepo skeleton, infra compose, contracts validation, Timescale migrations, CI
-- **M1 (control-api identity/keys):** auth, API keys, Alembic, Redis cache/rate limits — see `services/control-api`
-- **M2+:** see [AGENTS.md](AGENTS.md)
+- **M1 (control-api identity/keys):** auth, API keys, Alembic, Redis cache/rate limits
+- **M2 (ingestion-gateway):** `POST /v1/ingest`, auth, rate limit, Kafka publish
+- **M3 (stream-processor):** consume `telemetry.raw`, dedupe, Timescale sink (detectors next)
+- **Smoke test:** [tests/e2e/INGEST.md](tests/e2e/INGEST.md) after `make up`
+- **M4+:** see [AGENTS.md](AGENTS.md)
