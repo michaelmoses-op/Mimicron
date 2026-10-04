@@ -58,3 +58,31 @@ def create_refresh_token_value() -> str:
 
 def decode_access_token(token: str) -> dict[str, Any]:
     return jwt.decode(token, settings.jwt_secret, algorithms=["HS256"])
+
+
+def create_run_token(*, tenant_id: uuid.UUID, run_id: uuid.UUID) -> str:
+    now = datetime.now(UTC)
+    payload = {
+        "tenant_id": str(tenant_id),
+        "run_id": str(run_id),
+        "scopes": ["ingest"],
+        "type": "run",
+        "iat": now,
+        "exp": now + timedelta(seconds=settings.jwt_run_ttl_seconds),
+    }
+    return jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+
+
+def create_stream_token(*, tenant_id: uuid.UUID, user_id: uuid.UUID) -> tuple[str, datetime]:
+    now = datetime.now(UTC)
+    expires = now + timedelta(seconds=settings.jwt_stream_ttl_seconds)
+    payload = {
+        "tenant_id": str(tenant_id),
+        "sub": str(user_id),
+        "scopes": ["read"],
+        "type": "stream",
+        "iat": now,
+        "exp": expires,
+    }
+    token = jwt.encode(payload, settings.jwt_secret, algorithm="HS256")
+    return token, expires

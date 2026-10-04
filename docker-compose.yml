@@ -157,6 +157,12 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
       INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-dev-internal-secret-change-me}
+      KAFKA_BROKERS: redpanda:9092
+      TIMESCALE_URL: postgresql+asyncpg://${TIMESCALE_USER:-mimicron}:${TIMESCALE_PASSWORD:-mimicron_dev}@timescale:5432/${TIMESCALE_DB:-mimicron_ts}
+      CONTRACTS_DIR: /contracts
+      INGESTION_GATEWAY_URL: http://ingestion-gateway:8081
+    volumes:
+      - ./contracts:/contracts:ro
     healthcheck:
       <<: *health-defaults
       test: ["CMD", "curl", "-f", "http://localhost:8000/healthz"]
@@ -164,9 +170,18 @@ services:
   sim-engine:
     profiles: [services, all]
     build: ./services/sim-engine
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
+      ingestion-gateway:
+        condition: service_healthy
     environment:
       SERVICE_NAME: sim-engine
       HTTP_ADDR: ":8090"
+      KAFKA_BROKERS: redpanda:9092
+      INGESTION_URL: http://ingestion-gateway:8081
     healthcheck:
       <<: *health-defaults
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8090/healthz"]
@@ -221,11 +236,27 @@ services:
   stream-gateway:
     profiles: [services, all]
     build: ./services/stream-gateway
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redpanda-init:
+        condition: service_completed_successfully
     ports:
       - "${STREAM_GATEWAY_PORT:-8082}:8082"
     environment:
       SERVICE_NAME: stream-gateway
       PORT: "8082"
+      KAFKA_BROKERS: redpanda:9092
+      JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+
+  dashboard:
+    profiles: [services, all]
+    build: ./dashboard
+    ports:
+      - "${DASHBOARD_PORT:-5173}:80"
+    depends_on:
+      - control-api
+      - stream-gateway
     healthcheck:
       <<: *health-defaults
       test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8082/healthz"]

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import os
 from contextlib import asynccontextmanager
 from typing import Any
@@ -22,15 +23,28 @@ from app.core.errors import (
 from app.core.logging import configure_logging
 from app.core.redis_client import close_redis, get_redis
 from app.db.session import dispose_engine, get_engine
+from app.messaging.kafka import start_kafka, stop_kafka
+from app.messaging.sim_events_worker import run_sim_events_worker
 from app.middleware.request_id import RequestIdMiddleware
+from app.timescale.pool import dispose_timescale
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
     configure_logging(settings.log_level)
+    stop_event = asyncio.Event()
+    worker = asyncio.create_task(run_sim_events_worker(stop_event))
+    try:
+        await start_kafka()
+    except Exception:
+        pass
     yield
+    stop_event.set()
+    await worker
+    await stop_kafka()
     await close_redis()
     await dispose_engine()
+    await dispose_timescale()
 
 
 def create_app() -> FastAPI:

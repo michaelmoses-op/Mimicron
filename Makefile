@@ -47,3 +47,10 @@ test-stream-processor:
 
 test-stream-gateway:
 	cd services/stream-gateway && npm install --silent && npm test
+
+seed:
+	python scripts/demo.py $(API_URL)
+
+demo: seed
+
+API_URL ?= http://localhost:8000

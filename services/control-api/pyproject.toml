@@ -18,6 +18,9 @@ dependencies = [
   "pyjwt>=2.9.0",
   "redis>=5.1.0",
   "python-slugify>=8.0.0",
+  "aiokafka>=0.11.0",
+  "jsonschema>=4.23.0",
+  "pyyaml>=6.0.0",
 ]
 
 [project.optional-dependencies]

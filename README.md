@@ -36,5 +36,6 @@ Service ports: control-api `8000`, ingestion-gateway `8081`, stream-gateway `808
 - **M1 (control-api identity/keys):** auth, API keys, Alembic, Redis cache/rate limits
 - **M2 (ingestion-gateway):** `POST /v1/ingest`, auth, rate limit, Kafka publish
 - **M3 (stream-processor):** consume `telemetry.raw`, dedupe, Timescale sink (detectors next)
-- **Smoke test:** [tests/e2e/INGEST.md](tests/e2e/INGEST.md) after `make up`
-- **M4+:** see [AGENTS.md](AGENTS.md)
+- **M4 (sim + scenarios/runs):** control-api scenarios/runs/telemetry, sim-engine, `make demo`
+- **M5 (dashboard + SSE):** SvelteKit UI on `:5173`, stream-gateway SSE on `:8082`
+- **Smoke test:** [tests/e2e/INGEST.md](tests/e2e/INGEST.md) or `make demo` after `make up`

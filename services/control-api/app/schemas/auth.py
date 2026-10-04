@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field
 
@@ -27,6 +28,11 @@ class TokenPair(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class StreamToken(BaseModel):
+    token: str
+    expires_at: datetime
 
 
 class MeOut(BaseModel):
