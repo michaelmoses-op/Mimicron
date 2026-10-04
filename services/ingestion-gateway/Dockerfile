@@ -2,7 +2,8 @@ FROM golang:1.23-alpine AS build
 WORKDIR /src
 COPY go.mod ./
 COPY cmd ./cmd
-RUN go build -o /ingestion-gateway ./cmd/ingestion-gateway
+COPY internal ./internal
+RUN go mod tidy && go build -o /ingestion-gateway ./cmd/ingestion-gateway
 
 FROM alpine:3.20
 RUN apk add --no-cache wget
