@@ -1,0 +1,295 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mimicron.dev/schemas/scenario/v1.json",
+  "title": "Mimicron Scenario v1",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "additionalProperties": false,
+  "properties": {
+    "apiVersion": { "const": "mimicron/v1" },
+    "kind": { "const": "Scenario" },
+    "metadata": {
+      "type": "object",
+      "required": ["name"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,62}$" },
+        "description": { "type": "string", "maxLength": 2000 },
+        "tags": { "type": "array", "items": { "type": "string" }, "maxItems": 20 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "required": ["seed", "time"],
+      "additionalProperties": false,
+      "properties": {
+        "seed": { "type": "integer" },
+        "time": { "$ref": "#/$defs/time" },
+        "defaults": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "emit": {
+              "type": "object",
+              "properties": {
+                "batch": {
+                  "type": "object",
+                  "properties": {
+                    "maxEvents": { "type": "integer", "minimum": 1, "maximum": 1000 },
+                    "maxWait": { "$ref": "#/$defs/duration" }
+                  },
+                  "additionalProperties": false
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "deviceTypes": {
+          "type": "object",
+          "minProperties": 0,
+          "additionalProperties": { "$ref": "#/$defs/deviceType" }
+        },
+        "fleets": { "type": "array", "items": { "$ref": "#/$defs/fleet" } },
+        "traffic": { "type": "array", "items": { "$ref": "#/$defs/trafficProfile" } },
+        "timeline": { "type": "array", "items": { "$ref": "#/$defs/timelineEvent" } },
+        "chaos": { "type": "array", "items": { "$ref": "#/$defs/chaosRule" } }
+      }
+    }
+  },
+  "$defs": {
+    "duration": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(ms|s|m|h|d)$" },
+    "distribution": {
+      "type": "object",
+      "required": ["distribution"],
+      "properties": {
+        "distribution": { "enum": ["constant", "uniform", "normal", "lognormal", "geometric", "exponential"] }
+      },
+      "additionalProperties": true
+    },
+    "time": {
+      "type": "object",
+      "required": ["mode", "duration"],
+      "additionalProperties": false,
+      "properties": {
+        "mode": { "enum": ["realtime", "accelerated", "backfill"] },
+        "speed": { "type": "number", "minimum": 1 },
+        "start": { "type": "string", "format": "date-time" },
+        "duration": { "$ref": "#/$defs/duration" }
+      },
+      "allOf": [
+        { "if": { "properties": { "mode": { "const": "accelerated" } } }, "then": { "required": ["speed"] } },
+        { "if": { "properties": { "mode": { "const": "backfill" } } }, "then": { "required": ["start"] } }
+      ]
+    },
+    "generator": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["constant", "sine", "random_walk", "gaussian", "uniform", "linear", "sawtooth", "steps", "csv_replay"] }
+      },
+      "allOf": [
+        { "if": { "properties": { "type": { "const": "constant" } } }, "then": { "required": ["value"] } },
+        { "if": { "properties": { "type": { "const": "sine" } } }, "then": { "required": ["baseline", "amplitude", "period"] } },
+        { "if": { "properties": { "type": { "const": "random_walk" } } }, "then": { "required": ["start", "step"] } },
+        { "if": { "properties": { "type": { "const": "gaussian" } } }, "then": { "required": ["mean", "stddev"] } },
+        { "if": { "properties": { "type": { "const": "uniform" } } }, "then": { "required": ["min", "max"] } },
+        { "if": { "properties": { "type": { "const": "linear" } } }, "then": { "required": ["start", "slopePerHour"] } },
+        { "if": { "properties": { "type": { "const": "sawtooth" } } }, "then": { "required": ["min", "max", "period"] } },
+        { "if": { "properties": { "type": { "const": "steps" } } }, "then": { "required": ["levels"] } }
+      ],
+      "additionalProperties": true
+    },
+    "metric": {
+      "type": "object",
+      "required": ["generator"],
+      "additionalProperties": false,
+      "properties": {
+        "unit": { "type": "string" },
+        "generator": { "$ref": "#/$defs/generator" },
+        "noise": {
+          "type": "object",
+          "required": ["type"],
+          "properties": { "type": { "enum": ["gaussian", "uniform"] }, "stddev": { "type": "number" }, "amplitude": { "type": "number" } }
+        },
+        "bounds": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+        "precision": { "type": "integer", "minimum": 0, "maximum": 9 },
+        "emitEvery": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "deviceType": {
+      "type": "object",
+      "required": ["emit", "metrics"],
+      "additionalProperties": false,
+      "properties": {
+        "schemaVersion": { "type": "integer", "minimum": 1 },
+        "emit": {
+          "type": "object",
+          "required": ["interval"],
+          "additionalProperties": false,
+          "properties": {
+            "interval": { "$ref": "#/$defs/duration" },
+            "jitter": { "type": "number", "minimum": 0, "maximum": 1 }
+          }
+        },
+        "metrics": { "type": "object", "minProperties": 1, "additionalProperties": { "$ref": "#/$defs/metric" } }
+      }
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fleet": { "type": "string" },
+        "tags": { "type": "object", "additionalProperties": { "type": "string" } },
+        "traffic": { "type": "string" },
+        "percent": { "type": "number", "exclusiveMinimum": 0, "maximum": 100 }
+      },
+      "oneOf": [{ "required": ["fleet"] }, { "required": ["tags"] }, { "required": ["traffic"] }]
+    },
+    "fleet": {
+      "type": "object",
+      "required": ["name", "deviceType", "count", "idPattern"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "deviceType": { "type": "string" },
+        "count": { "type": "integer", "minimum": 1 },
+        "idPattern": { "type": "string", "pattern": "\\{index(:[0-9]+d)?\\}" },
+        "tags": { "type": "object", "additionalProperties": { "type": "string" } },
+        "variance": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["metric", "param", "distribution"],
+            "properties": {
+              "metric": { "type": "string" },
+              "param": { "type": "string" },
+              "distribution": { "enum": ["normal", "uniform", "lognormal"] },
+              "stddev": { "type": "number" },
+              "min": { "type": "number" },
+              "max": { "type": "number" }
+            }
+          }
+        },
+        "startOffset": { "$ref": "#/$defs/distribution" },
+        "clockSkew": { "$ref": "#/$defs/duration" }
+      }
+    },
+    "trafficProfile": {
+      "type": "object",
+      "required": ["name", "arrival", "flows"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "arrival": {
+          "type": "object",
+          "required": ["process", "ratePerSec"],
+          "additionalProperties": false,
+          "properties": {
+            "process": { "enum": ["poisson", "constant"] },
+            "ratePerSec": { "type": "number", "exclusiveMinimum": 0 },
+            "pattern": {
+              "type": "object",
+              "required": ["type"],
+              "properties": {
+                "type": { "enum": ["flat", "diurnal", "spiky"] },
+                "peakHour": { "type": "number", "minimum": 0, "maximum": 24 },
+                "amplitude": { "type": "number", "minimum": 0, "maximum": 1 }
+              }
+            }
+          }
+        },
+        "session": {
+          "type": "object",
+          "properties": { "requests": { "$ref": "#/$defs/distribution" }, "thinkTime": { "$ref": "#/$defs/distribution" } }
+        },
+        "regions": { "type": "object", "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 } },
+        "flows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["name", "weight", "steps"],
+            "properties": {
+              "name": { "type": "string" },
+              "weight": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+              "steps": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "required": ["method", "path"],
+                  "properties": {
+                    "method": { "enum": ["GET", "POST", "PUT", "PATCH", "DELETE"] },
+                    "path": { "type": "string" },
+                    "latencyMs": { "$ref": "#/$defs/distribution" },
+                    "errorRate": { "type": "number", "minimum": 0, "maximum": 1 },
+                    "bytes": { "$ref": "#/$defs/distribution" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "timelineEvent": {
+      "type": "object",
+      "required": ["name", "target", "action"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "at": { "$ref": "#/$defs/duration" },
+        "every": { "$ref": "#/$defs/duration" },
+        "until": { "$ref": "#/$defs/duration" },
+        "target": { "$ref": "#/$defs/target" },
+        "action": {
+          "type": "object",
+          "required": ["type"],
+          "properties": {
+            "type": { "enum": ["adjust", "set_state", "inject_anomaly", "set_rate", "scale_traffic"] },
+            "metric": { "type": "string" },
+            "add": { "type": "number" },
+            "multiply": { "type": "number" },
+            "multiplier": { "type": "number" },
+            "ramp": { "$ref": "#/$defs/duration" },
+            "hold": { "$ref": "#/$defs/duration" },
+            "online": { "type": "boolean" },
+            "for": { "$ref": "#/$defs/duration" },
+            "kind": { "enum": ["spike", "drift", "stuck", "dropout"] },
+            "magnitude": { "type": "number" },
+            "duration": { "$ref": "#/$defs/duration" },
+            "interval": { "$ref": "#/$defs/duration" }
+          },
+          "additionalProperties": false
+        }
+      },
+      "oneOf": [{ "required": ["at"] }, { "required": ["every"] }]
+    },
+    "chaosRule": {
+      "type": "object",
+      "required": ["name", "target", "faults"],
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string" },
+        "target": { "$ref": "#/$defs/target" },
+        "window": {
+          "type": "object",
+          "properties": { "from": { "$ref": "#/$defs/duration" }, "to": { "$ref": "#/$defs/duration" } }
+        },
+        "faults": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["type"],
+            "properties": {
+              "type": { "enum": ["drop", "duplicate", "delay", "reorder", "clock_skew", "schema_drift", "corrupt"] }
+            },
+            "additionalProperties": true
+          }
+        }
+      }
+    }
+  }
+}

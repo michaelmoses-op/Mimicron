@@ -1,0 +1,99 @@
+apiVersion: mimicron/v1
+kind: Scenario
+metadata:
+  name: smart-building-heatwave
+  description: 500 thermostats across two floors, a heat wave at 30m, a partial outage, and an injected sensor fault. Includes a small storefront traffic profile.
+  tags: [iot, hvac, demo]
+
+spec:
+  seed: 42
+  time:
+    mode: realtime
+    duration: 2h
+
+  defaults:
+    emit:
+      batch: { maxEvents: 200, maxWait: 1s }
+
+  deviceTypes:
+    thermostat:
+      schemaVersion: 1
+      emit: { interval: 10s, jitter: 0.1 }
+      metrics:
+        temperature_c:
+          unit: C
+          generator: { type: sine, baseline: 21, amplitude: 1.5, period: 24h }
+          noise: { type: gaussian, stddev: 0.15 }
+          bounds: [5, 45]
+          precision: 2
+        humidity_pct:
+          unit: "%"
+          generator: { type: random_walk, start: 45, step: 0.4, min: 20, max: 80 }
+          precision: 1
+        battery_pct:
+          unit: "%"
+          generator: { type: linear, start: 100, slopePerHour: -0.2, min: 0, max: 100 }
+          emitEvery: 6        # roughly once a minute
+
+  fleets:
+    - name: floor-1
+      deviceType: thermostat
+      count: 250
+      idPattern: "therm-1-{index:04d}"
+      tags: { site: hq, floor: "1" }
+      variance:
+        - { metric: temperature_c, param: baseline, distribution: normal, stddev: 1.0 }
+      startOffset: { distribution: uniform, max: 10s }
+    - name: floor-2
+      deviceType: thermostat
+      count: 250
+      idPattern: "therm-2-{index:04d}"
+      tags: { site: hq, floor: "2" }
+      variance:
+        - { metric: temperature_c, param: baseline, distribution: normal, stddev: 1.0 }
+      startOffset: { distribution: uniform, max: 10s }
+
+  traffic:
+    - name: storefront
+      arrival:
+        process: poisson
+        ratePerSec: 20
+        pattern: { type: diurnal, peakHour: 14, amplitude: 0.6 }
+      session:
+        requests: { distribution: geometric, mean: 6 }
+        thinkTime: { distribution: lognormal, median: 2s, sigma: 0.5 }
+      regions: { us-east: 0.6, eu-west: 0.4 }
+      flows:
+        - name: browse
+          weight: 0.7
+          steps:
+            - { method: GET, path: /products, latencyMs: { distribution: lognormal, median: 80, sigma: 0.4 }, errorRate: 0.01, bytes: { distribution: constant, value: 18000 } }
+            - { method: GET, path: "/products/{id}", latencyMs: { distribution: lognormal, median: 60, sigma: 0.4 }, errorRate: 0.01, bytes: { distribution: constant, value: 9000 } }
+        - name: checkout
+          weight: 0.3
+          steps:
+            - { method: POST, path: /cart, latencyMs: { distribution: lognormal, median: 120, sigma: 0.5 }, errorRate: 0.02, bytes: { distribution: constant, value: 2000 } }
+            - { method: POST, path: /checkout, latencyMs: { distribution: lognormal, median: 350, sigma: 0.6 }, errorRate: 0.05, bytes: { distribution: constant, value: 3000 } }
+
+  timeline:
+    - at: 30m
+      name: heat-wave
+      target: { fleet: floor-1 }
+      action: { type: adjust, metric: temperature_c, add: 8, ramp: 20m, hold: 40m }
+
+    - at: 45m
+      name: partial-outage
+      target: { fleet: floor-1, percent: 5 }
+      action: { type: set_state, online: false, for: 15m }
+
+    - at: 70m
+      name: stuck-sensor
+      target: { fleet: floor-2, percent: 2 }
+      action: { type: inject_anomaly, metric: temperature_c, kind: stuck, duration: 20m }
+
+    - at: 90m
+      name: flash-sale
+      target: { traffic: storefront }
+      action: { type: scale_traffic, multiplier: 5, ramp: 2m, hold: 10m }
+
+  chaos: []   # reserved for the chaos milestone

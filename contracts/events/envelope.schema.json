@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mimicron.dev/schemas/events/envelope/v1.json",
+  "title": "Mimicron Event Envelope v1",
+  "description": "Wire format on telemetry.raw and after gateway stamping. tenant_id and ingest_time are set by ingestion-gateway and must not be trusted from clients.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "event_id",
+    "kind",
+    "tenant_id",
+    "device_id",
+    "event_time",
+    "ingest_time",
+    "data"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": { "type": "integer", "const": 1 },
+    "event_id": {
+      "type": "string",
+      "description": "Dedupe key (UUID). Simulator should generate deterministically from seed/seq when possible."
+    },
+    "kind": { "enum": ["telemetry", "traffic"] },
+    "tenant_id": { "type": "string", "format": "uuid" },
+    "run_id": { "type": ["string", "null"], "format": "uuid" },
+    "device_id": {
+      "type": "string",
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9._:-]+$"
+    },
+    "device_type": { "type": "string", "maxLength": 64 },
+    "event_time": { "type": "string", "format": "date-time" },
+    "ingest_time": { "type": "string", "format": "date-time" },
+    "seq": { "type": "integer", "minimum": 0 },
+    "tags": {
+      "type": "object",
+      "maxProperties": 16,
+      "additionalProperties": { "type": "string", "maxLength": 128 }
+    },
+    "data": {
+      "type": "object",
+      "maxProperties": 64,
+      "description": "telemetry: metric name -> number. traffic: session_id, client_id, method, path, status, latency_ms, bytes, region.",
+      "additionalProperties": true
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "kind": { "const": "telemetry" } } },
+      "then": {
+        "properties": {
+          "data": {
+            "additionalProperties": { "type": "number" }
+          }
+        }
+      }
+    }
+  ]
+}

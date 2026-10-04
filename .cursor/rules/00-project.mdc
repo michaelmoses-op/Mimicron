@@ -1,0 +1,43 @@
+---
+description: Mimicron project-wide rules. Always applied.
+alwaysApply: true
+---
+
+# Mimicron: project rules
+
+Mimicron is a multi-tenant platform for simulating device fleets and network/customer traffic, exposing the data via REST and SSE to other developers. Read `docs/architecture.md` before making cross-service changes.
+
+## Non-negotiables
+
+1. **Contracts first.** `/contracts` (OpenAPI, JSON Schema, event envelope, topics) is the source of truth. If code and contract disagree, fix the code or update the contract in the same change. Never silently drift.
+2. **Do not change architecture on your own.** Service boundaries, language choices, datastores, topics, and auth model are decided (see `docs/architecture.md`). If you believe a change is needed, stop and explain the tradeoff; do not implement it unprompted.
+3. **Locked stack.** control-api = FastAPI. sim-engine and ingestion-gateway = Go. stream-processor = Rust (the ONLY Rust service). stream-gateway = Express + TypeScript. dashboard = SvelteKit. Datastores = PostgreSQL (metadata), TimescaleDB (telemetry), Redis, MinIO. Messaging = Redpanda. **No Cassandra.** Do not add new datastores, frameworks, or major dependencies without asking.
+4. **Tenant isolation.** `tenant_id` comes from verified credentials only. Every query, cache key, and Kafka key includes it. Never accept `tenant_id` from a client payload.
+5. **Determinism.** Simulator values derive only from the scenario seed through per-device PRNGs. No global RNG, no wall-clock-dependent values.
+6. **At-least-once + idempotent.** Consumers commit offsets after durable writes. Writes must tolerate duplicates (`event_id`, unique keys, `ON CONFLICT DO NOTHING`).
+7. **Secrets.** Never log secrets, API keys, or tokens. Store API keys as SHA-256 hashes only. No secrets in the repo; use `.env` and `.env.example`.
+
+## Working style
+
+- Work in small, vertical increments that run end-to-end. After each milestone: it builds, tests pass, `make up` works, and docs are updated.
+- Write tests with the code: unit tests for logic, integration tests with real dependencies (testcontainers / compose), and contract tests against `/contracts`.
+- Prefer boring, explicit code. Small functions, clear names, comments that explain *why*.
+- Add or update an ADR in `docs/adr/` for any real decision (use the short format: Context, Decision, Consequences).
+- When unsure about a requirement, ask one concise question rather than guessing, unless the answer is in `/docs` or `/contracts`.
+- Keep each service's README current: how to run, config variables, how to test.
+
+## Per-language conventions
+
+**Python (control-api):** Python 3.12, FastAPI, Pydantic v2, SQLAlchemy 2.0 (async), Alembic, `ruff` + `mypy --strict` on app code, `pytest` + `httpx` + testcontainers. Errors as RFC 7807 problem+json. Dependency injection via FastAPI `Depends`. No business logic in routers; put it in `services/`.
+
+**Go (sim-engine, ingestion-gateway):** Go 1.23, standard library first (`net/http`, `log/slog`, `context`), `golangci-lint`, table-driven tests, `-race` in CI. Propagate `context.Context`. Graceful shutdown on SIGTERM. Use `franz-go` for Kafka/Redpanda and `go-redis` for Redis.
+
+**Rust (stream-processor):** stable toolchain, `tokio`, `rdkafka`, `sqlx` (compile-time checked queries where practical), `serde`, `tracing`, `thiserror`/`anyhow`, `clippy -D warnings`, `cargo fmt`. Detectors implement a `Detector` trait and are unit tested with synthetic series. Bounded memory for per-key state (LRU).
+
+**TypeScript (stream-gateway):** Node 22, strict TS, Express, `kafkajs`, `ioredis`, `zod` for validation, `vitest`, ESLint + Prettier. No `any`.
+
+**SvelteKit (dashboard):** Svelte 5 (runes), TypeScript strict, Tailwind. API client generated from `contracts/openapi/control-api.yaml` (`openapi-typescript`); do not hand-write API types. Charts via uPlot (fast live time series). Components small and typed; `vitest` for logic, Playwright for a few critical flows.
+
+## Definition of done (per task)
+
+Code + tests + docs/contract updates + lint clean + runs locally via `make up` + observable (logs, metrics for new paths).

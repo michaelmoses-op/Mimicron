@@ -1,0 +1,64 @@
+flowchart LR
+  subgraph Clients
+    USER["Dashboard user"]
+    DEV["External developer apps<br/>and SDKs"]
+  end
+
+  subgraph Edge["Edge / Public surface"]
+    DASH["Dashboard<br/>SvelteKit"]
+    API["Control API<br/>FastAPI"]
+    ING["Ingestion Gateway<br/>Go"]
+    SG["Stream Gateway<br/>Express / TS"]
+  end
+
+  subgraph Sim["Simulation plane"]
+    SIM["Sim Engine<br/>Go<br/>device + traffic simulators"]
+  end
+
+  subgraph Bus["Redpanda topics"]
+    T1[["sim.commands"]]
+    T2[["sim.events"]]
+    T3[["telemetry.raw"]]
+    T4[["telemetry.processed"]]
+    T5[["anomalies.detected"]]
+    T6[["telemetry.dlq"]]
+  end
+
+  SP["Stream Processor<br/>Rust<br/>validate, dedupe, detect, sink"]
+
+  PG[("PostgreSQL<br/>tenants, keys, scenarios, runs")]
+  TS[("TimescaleDB<br/>measurements, anomalies, rollups")]
+  RD[("Redis<br/>key cache, rate limits,<br/>usage counters")]
+  S3[("MinIO / S3<br/>archives, replay files")]
+
+  USER --> DASH
+  DASH -->|"REST + JWT"| API
+  DASH -->|"SSE (stream token)"| SG
+  DEV -->|"REST + API key"| API
+  DEV -->|"POST /v1/ingest"| ING
+  DEV -->|"SSE / WS"| SG
+
+  API --> PG
+  API -->|"read-only queries"| TS
+  API --> RD
+  API -->|"start / stop runs"| T1
+  T1 --> SIM
+  SIM -->|"status, ground-truth labels"| T2
+  T2 --> API
+
+  SIM -->|"HTTP batches, like a real device"| ING
+  ING -->|"key lookup, rate limit"| RD
+  ING -.->|"cache miss: verify key"| API
+  ING --> T3
+
+  T3 --> SP
+  SP -->|"batch insert"| TS
+  SP --> T4
+  SP --> T5
+  SP --> T6
+  T4 --> SG
+  T5 --> SG
+  SG -->|"key lookup"| RD
+
+  SP -.->|"later: Parquet archive"| S3
+  S3 -.->|"later: time-travel replay"| SIM

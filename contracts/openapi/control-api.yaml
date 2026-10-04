@@ -1,0 +1,538 @@
+openapi: 3.1.0
+info:
+  title: Mimicron Control API
+  version: 0.1.0
+  description: |
+    Control plane for Mimicron: auth, API keys, scenarios, runs, telemetry queries, usage.
+    - Humans authenticate with a JWT (`bearerAuth`). Machines use API keys (`apiKeyAuth`).
+    - All resources are tenant-scoped; tenant is derived from credentials, never from the request.
+    - Errors use RFC 7807 `application/problem+json`.
+    - Lists use cursor pagination (`limit`, `cursor` -> `next_cursor`).
+servers:
+  - url: http://localhost:8000
+    description: local
+
+security:
+  - bearerAuth: []
+  - apiKeyAuth: []
+
+tags:
+  - { name: auth }
+  - { name: api-keys }
+  - { name: scenarios }
+  - { name: runs }
+  - { name: telemetry }
+  - { name: usage }
+  - { name: internal, description: "Service-to-service only; not exposed publicly" }
+
+paths:
+  /healthz: { get: { summary: Liveness, security: [], responses: { "200": { description: ok } } } }
+  /readyz: { get: { summary: Readiness (DB, Redis, Redpanda), security: [], responses: { "200": { description: ready }, "503": { description: not ready } } } }
+
+  /v1/auth/register:
+    post:
+      tags: [auth]
+      summary: Create a user and a personal tenant
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/RegisterRequest" } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/TokenPair" } } } }
+        "409": { $ref: "#/components/responses/Problem" }
+        "422": { $ref: "#/components/responses/Problem" }
+
+  /v1/auth/login:
+    post:
+      tags: [auth]
+      summary: Exchange credentials for tokens
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/LoginRequest" } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TokenPair" } } } }
+        "401": { $ref: "#/components/responses/Problem" }
+
+  /v1/auth/refresh:
+    post:
+      tags: [auth]
+      summary: Rotate refresh token
+      security: []
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [refresh_token], properties: { refresh_token: { type: string } } } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TokenPair" } } } }
+        "401": { $ref: "#/components/responses/Problem" }
+
+  /v1/me:
+    get:
+      tags: [auth]
+      summary: Current principal, tenant, and quotas
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Me" } } } }
+        "401": { $ref: "#/components/responses/Problem" }
+
+  /v1/stream-tokens:
+    post:
+      tags: [auth]
+      summary: Mint a short-lived (5 min) token for SSE/WebSocket connections (browsers cannot set headers on EventSource)
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/StreamToken" } } } }
+
+  /v1/api-keys:
+    get:
+      tags: [api-keys]
+      summary: List API keys (never returns secrets)
+      parameters: [{ $ref: "#/components/parameters/Limit" }, { $ref: "#/components/parameters/Cursor" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ApiKeyPage" } } } }
+    post:
+      tags: [api-keys]
+      summary: Create an API key. The secret is returned exactly once.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ApiKeyCreate" } } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/ApiKeyCreated" } } } }
+        "422": { $ref: "#/components/responses/Problem" }
+
+  /v1/api-keys/{key_id}:
+    parameters: [{ $ref: "#/components/parameters/KeyId" }]
+    delete:
+      tags: [api-keys]
+      summary: Revoke a key (also evicts it from the gateway cache)
+      responses:
+        "204": { description: Revoked }
+        "404": { $ref: "#/components/responses/Problem" }
+
+  /v1/scenarios:
+    get:
+      tags: [scenarios]
+      parameters: [{ $ref: "#/components/parameters/Limit" }, { $ref: "#/components/parameters/Cursor" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/ScenarioPage" } } } }
+    post:
+      tags: [scenarios]
+      summary: Create a scenario (version 1). Body is a scenario document in JSON or YAML.
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/ScenarioWrite" } }
+          application/yaml: { schema: { type: string } }
+      responses:
+        "201": { description: Created, content: { application/json: { schema: { $ref: "#/components/schemas/Scenario" } } } }
+        "422": { description: Validation failed, content: { application/problem+json: { schema: { $ref: "#/components/schemas/ValidationProblem" } } } }
+
+  /v1/scenarios:validate:
+    post:
+      tags: [scenarios]
+      summary: Validate without saving. Returns errors and an estimated load.
+      requestBody:
+        required: true
+        content:
+          application/json: { schema: { $ref: "#/components/schemas/ScenarioWrite" } }
+          application/yaml: { schema: { type: string } }
+      responses:
+        "200": { description: Validation result, content: { application/json: { schema: { $ref: "#/components/schemas/ValidationResult" } } } }
+
+  /v1/scenarios/{scenario_id}:
+    parameters: [{ $ref: "#/components/parameters/ScenarioId" }]
+    get:
+      tags: [scenarios]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Scenario" } } } }
+        "404": { $ref: "#/components/responses/Problem" }
+    put:
+      tags: [scenarios]
+      summary: Create a new immutable version
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/ScenarioWrite" } } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Scenario" } } } }
+        "422": { description: Validation failed, content: { application/problem+json: { schema: { $ref: "#/components/schemas/ValidationProblem" } } } }
+    delete:
+      tags: [scenarios]
+      responses:
+        "204": { description: Deleted }
+        "409": { description: Has active runs, content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } } }
+
+  /v1/runs:
+    get:
+      tags: [runs]
+      parameters:
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+        - { name: status, in: query, schema: { $ref: "#/components/schemas/RunStatus" } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/RunPage" } } } }
+    post:
+      tags: [runs]
+      summary: Start a run. Enforces quotas; returns 202 immediately, status progresses via sim.events.
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: "#/components/schemas/RunCreate" } } }
+      responses:
+        "202": { description: Accepted, content: { application/json: { schema: { $ref: "#/components/schemas/Run" } } } }
+        "402": { $ref: "#/components/responses/Problem" }
+        "409": { description: Concurrent run limit reached, content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } } }
+        "422": { description: Validation failed, content: { application/problem+json: { schema: { $ref: "#/components/schemas/ValidationProblem" } } } }
+        "429": { $ref: "#/components/responses/RateLimited" }
+
+  /v1/runs/{run_id}:
+    parameters: [{ $ref: "#/components/parameters/RunId" }]
+    get:
+      tags: [runs]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Run" } } } }
+        "404": { $ref: "#/components/responses/Problem" }
+
+  /v1/runs/{run_id}/{action}:
+    parameters:
+      - { $ref: "#/components/parameters/RunId" }
+      - { name: action, in: path, required: true, schema: { enum: [stop, pause, resume] } }
+    post:
+      tags: [runs]
+      summary: Control a run (publishes to sim.commands)
+      responses:
+        "202": { description: Accepted, content: { application/json: { schema: { $ref: "#/components/schemas/Run" } } } }
+        "409": { $ref: "#/components/responses/Problem" }
+
+  /v1/runs/{run_id}/devices:
+    parameters: [{ $ref: "#/components/parameters/RunId" }]
+    get:
+      tags: [runs]
+      summary: Devices seen for this run (from the Timescale device registry)
+      parameters: [{ $ref: "#/components/parameters/Limit" }, { $ref: "#/components/parameters/Cursor" }]
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/DevicePage" } } } }
+
+  /v1/runs/{run_id}/ground-truth:
+    parameters: [{ $ref: "#/components/parameters/RunId" }]
+    get:
+      tags: [runs]
+      summary: Injected anomaly/chaos labels, for evaluating detectors
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { type: object, properties: { items: { type: array, items: { $ref: "#/components/schemas/GroundTruthLabel" } } } } } } }
+
+  /v1/telemetry:
+    get:
+      tags: [telemetry]
+      summary: Query measurements (raw or aggregated). Always tenant-scoped.
+      parameters:
+        - { name: run_id, in: query, schema: { type: string, format: uuid } }
+        - { name: device_id, in: query, schema: { type: string } }
+        - { name: metric, in: query, required: true, schema: { type: string } }
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: interval, in: query, description: "Aggregation bucket; omit for raw points", schema: { enum: [raw, 1m, 1h], default: raw } }
+        - { name: agg, in: query, schema: { enum: [avg, min, max, count], default: avg } }
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TelemetryPage" } } } }
+        "422": { $ref: "#/components/responses/Problem" }
+
+  /v1/anomalies:
+    get:
+      tags: [telemetry]
+      parameters:
+        - { name: run_id, in: query, schema: { type: string, format: uuid } }
+        - { name: device_id, in: query, schema: { type: string } }
+        - { name: severity, in: query, schema: { enum: [low, medium, high] } }
+        - { name: from, in: query, schema: { type: string, format: date-time } }
+        - { name: to, in: query, schema: { type: string, format: date-time } }
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/AnomalyPage" } } } }
+
+  /v1/usage:
+    get:
+      tags: [usage]
+      summary: Daily usage and current quota consumption
+      parameters:
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/Usage" } } } }
+
+  /internal/v1/keys/verify:
+    post:
+      tags: [internal]
+      summary: Resolve an API key hash to a principal. Called by ingestion-gateway and stream-gateway on cache miss.
+      security: [{ internalSecret: [] }]
+      requestBody:
+        required: true
+        content: { application/json: { schema: { type: object, required: [key_hash], properties: { key_hash: { type: string, description: "hex SHA-256 of the full key" } } } } }
+      responses:
+        "200":
+          description: Valid
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [tenant_id, key_id, scopes, limits]
+                properties:
+                  tenant_id: { type: string, format: uuid }
+                  key_id: { type: string, format: uuid }
+                  scopes: { type: array, items: { $ref: "#/components/schemas/Scope" } }
+                  limits: { $ref: "#/components/schemas/Quota" }
+        "404": { description: Unknown, revoked, or expired }
+
+components:
+  securitySchemes:
+    bearerAuth: { type: http, scheme: bearer, bearerFormat: JWT }
+    apiKeyAuth: { type: apiKey, in: header, name: X-API-Key }
+    internalSecret: { type: apiKey, in: header, name: X-Internal-Secret }
+
+  parameters:
+    Limit: { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 50 } }
+    Cursor: { name: cursor, in: query, schema: { type: string } }
+    KeyId: { name: key_id, in: path, required: true, schema: { type: string, format: uuid } }
+    ScenarioId: { name: scenario_id, in: path, required: true, schema: { type: string, format: uuid } }
+    RunId: { name: run_id, in: path, required: true, schema: { type: string, format: uuid } }
+
+  responses:
+    Problem:
+      description: Error
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+    RateLimited:
+      description: Too many requests
+      headers:
+        Retry-After: { schema: { type: integer } }
+        X-RateLimit-Limit: { schema: { type: integer } }
+        X-RateLimit-Remaining: { schema: { type: integer } }
+      content: { application/problem+json: { schema: { $ref: "#/components/schemas/Problem" } } }
+
+  schemas:
+    Problem:
+      type: object
+      required: [type, title, status]
+      properties:
+        type: { type: string, example: "https://mimicron.dev/problems/quota-exceeded" }
+        title: { type: string }
+        status: { type: integer }
+        detail: { type: string }
+        instance: { type: string }
+        request_id: { type: string }
+    ValidationProblem:
+      allOf:
+        - $ref: "#/components/schemas/Problem"
+        - type: object
+          properties:
+            errors: { type: array, items: { $ref: "#/components/schemas/ValidationError" } }
+    ValidationError:
+      type: object
+      required: [path, code, message]
+      properties:
+        path: { type: string, example: "spec.fleets[0].count" }
+        code: { type: string, example: "quota.max_devices" }
+        message: { type: string }
+    ValidationResult:
+      type: object
+      required: [valid]
+      properties:
+        valid: { type: boolean }
+        errors: { type: array, items: { $ref: "#/components/schemas/ValidationError" } }
+        estimate:
+          type: object
+          properties:
+            devices: { type: integer }
+            events_per_sec: { type: number }
+            total_events: { type: integer }
+
+    RegisterRequest:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email }
+        password: { type: string, minLength: 10 }
+        tenant_name: { type: string }
+    LoginRequest:
+      type: object
+      required: [email, password]
+      properties: { email: { type: string, format: email }, password: { type: string } }
+    TokenPair:
+      type: object
+      required: [access_token, refresh_token, expires_in]
+      properties:
+        access_token: { type: string }
+        refresh_token: { type: string }
+        token_type: { type: string, default: Bearer }
+        expires_in: { type: integer, description: seconds }
+    StreamToken:
+      type: object
+      required: [token, expires_at]
+      properties: { token: { type: string }, expires_at: { type: string, format: date-time } }
+    Me:
+      type: object
+      properties:
+        user_id: { type: string, format: uuid }
+        email: { type: string }
+        tenant_id: { type: string, format: uuid }
+        tenant_name: { type: string }
+        role: { enum: [owner, admin, member] }
+        quota: { $ref: "#/components/schemas/Quota" }
+    Quota:
+      type: object
+      properties:
+        max_devices: { type: integer }
+        max_events_per_sec: { type: integer }
+        max_concurrent_runs: { type: integer }
+        max_run_duration_s: { type: integer }
+        retention_days: { type: integer }
+        max_api_rps: { type: integer }
+
+    Scope: { enum: [ingest, read, simulate, admin] }
+    ApiKeyCreate:
+      type: object
+      required: [name, scopes]
+      properties:
+        name: { type: string, maxLength: 100 }
+        scopes: { type: array, items: { $ref: "#/components/schemas/Scope" }, minItems: 1 }
+        expires_at: { type: [string, "null"], format: date-time }
+    ApiKey:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        prefix: { type: string, example: "mc_live_a1b2c3" }
+        scopes: { type: array, items: { $ref: "#/components/schemas/Scope" } }
+        created_at: { type: string, format: date-time }
+        last_used_at: { type: [string, "null"], format: date-time }
+        expires_at: { type: [string, "null"], format: date-time }
+        revoked_at: { type: [string, "null"], format: date-time }
+    ApiKeyCreated:
+      allOf:
+        - $ref: "#/components/schemas/ApiKey"
+        - type: object
+          required: [secret]
+          properties:
+            secret: { type: string, description: "Full key, shown once. Format mc_live_<prefix>_<secret>" }
+    ApiKeyPage:
+      type: object
+      properties: { items: { type: array, items: { $ref: "#/components/schemas/ApiKey" } }, next_cursor: { type: [string, "null"] } }
+
+    ScenarioWrite:
+      type: object
+      required: [scenario]
+      properties:
+        scenario: { type: object, description: "Document conforming to contracts/scenario/scenario.schema.json" }
+    ScenarioSummary:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        name: { type: string }
+        description: { type: string }
+        current_version: { type: integer }
+        updated_at: { type: string, format: date-time }
+    Scenario:
+      allOf:
+        - $ref: "#/components/schemas/ScenarioSummary"
+        - type: object
+          properties:
+            spec: { type: object }
+            spec_yaml: { type: string }
+            checksum: { type: string }
+    ScenarioPage:
+      type: object
+      properties: { items: { type: array, items: { $ref: "#/components/schemas/ScenarioSummary" } }, next_cursor: { type: [string, "null"] } }
+
+    RunStatus: { enum: [pending, running, paused, completed, failed, stopped] }
+    RunCreate:
+      type: object
+      required: [scenario_id]
+      properties:
+        scenario_id: { type: string, format: uuid }
+        version: { type: integer, description: "Defaults to current_version" }
+        seed_override: { type: integer }
+        mode_override: { enum: [realtime, accelerated, backfill] }
+        speed_override: { type: number }
+    Run:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        scenario_id: { type: string, format: uuid }
+        scenario_version: { type: integer }
+        status: { $ref: "#/components/schemas/RunStatus" }
+        seed: { type: integer }
+        mode: { type: string }
+        device_count: { type: integer }
+        events_emitted: { type: integer }
+        started_at: { type: [string, "null"], format: date-time }
+        ended_at: { type: [string, "null"], format: date-time }
+        error: { type: [string, "null"] }
+    RunPage:
+      type: object
+      properties: { items: { type: array, items: { $ref: "#/components/schemas/Run" } }, next_cursor: { type: [string, "null"] } }
+
+    Device:
+      type: object
+      properties:
+        device_id: { type: string }
+        device_type: { type: string }
+        tags: { type: object, additionalProperties: { type: string } }
+        first_seen: { type: string, format: date-time }
+        last_seen: { type: string, format: date-time }
+    DevicePage:
+      type: object
+      properties: { items: { type: array, items: { $ref: "#/components/schemas/Device" } }, next_cursor: { type: [string, "null"] } }
+
+    TelemetryPoint:
+      type: object
+      required: [time, value]
+      properties:
+        time: { type: string, format: date-time }
+        device_id: { type: string }
+        value: { type: number }
+    TelemetryPage:
+      type: object
+      properties:
+        metric: { type: string }
+        interval: { type: string }
+        items: { type: array, items: { $ref: "#/components/schemas/TelemetryPoint" } }
+        next_cursor: { type: [string, "null"] }
+
+    Anomaly:
+      type: object
+      properties:
+        time: { type: string, format: date-time }
+        run_id: { type: string, format: uuid }
+        device_id: { type: string }
+        metric: { type: string }
+        detector: { enum: [ewma_zscore, stuck_value, dropout] }
+        severity: { enum: [low, medium, high] }
+        score: { type: number }
+        value: { type: number }
+        expected: { type: number }
+    AnomalyPage:
+      type: object
+      properties: { items: { type: array, items: { $ref: "#/components/schemas/Anomaly" } }, next_cursor: { type: [string, "null"] } }
+
+    GroundTruthLabel:
+      type: object
+      properties:
+        device_id: { type: string }
+        metric: { type: string }
+        kind: { type: string }
+        start_time: { type: string, format: date-time }
+        end_time: { type: string, format: date-time }
+        source_event: { type: string }
+
+    Usage:
+      type: object
+      properties:
+        daily:
+          type: array
+          items:
+            type: object
+            properties:
+              day: { type: string, format: date }
+              events_ingested: { type: integer }
+              events_rejected: { type: integer }
+              api_calls: { type: integer }
+              sim_seconds: { type: integer }
+        quota: { $ref: "#/components/schemas/Quota" }
