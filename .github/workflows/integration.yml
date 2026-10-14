@@ -1,0 +1,45 @@
+name: integration
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: integration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  compose-e2e-k6:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Start stack
+        run: |
+          cp .env.example .env
+          docker compose --env-file .env --profile all up -d --build --wait
+
+      - name: E2E smoke (ingest → telemetry)
+        run: |
+          pip install httpx
+          python tests/e2e/smoke.py
+
+      - name: k6 ingest smoke
+        run: |
+          pip install httpx
+          API_KEY=$(python scripts/ci_provision_ingest_key.py http://localhost:8000)
+          docker run --rm --network host \
+            -e API_KEY="$API_KEY" \
+            -e INGEST_URL=http://localhost:8081/v1/ingest \
+            -v "${{ github.workspace }}/tests/load:/scripts:ro" \
+            grafana/k6:0.54.0 run /scripts/ingest_smoke.js
+
+      - name: Compose logs on failure
+        if: failure()
+        run: docker compose --env-file .env logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose --env-file .env --profile all down -v

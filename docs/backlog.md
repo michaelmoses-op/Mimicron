@@ -1,3 +1,11 @@
+# Backlog (post M7 slice)
+
+## M7 follow-ups
+
+- Cosign image signing; richer GHA layer caching for Rust/Go
+- Path-filter `integration.yml` on PRs (docs-only PRs skip Compose)
+- Pin Trivy allowlist if base-image CVEs block `main` publishes
+
 # Backlog (post M6 slice)
 
 ## M6 follow-ups

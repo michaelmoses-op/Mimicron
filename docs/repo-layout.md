@@ -149,7 +149,8 @@ mimicron/
         ├── 0004-rust-only-for-stream-processor.md
         ├── 0005-narrow-measurement-schema.md
         ├── 0006-no-cassandra.md
-        └── 0007-cloud-neutral-deployment.md
+        ├── 0007-cloud-neutral-deployment.md
+        └── 0008-ci-ghcr-trivy.md
 ```
 
 ## Ports (local)

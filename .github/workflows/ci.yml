@@ -5,8 +5,45 @@ on:
     branches: [main]
   pull_request:
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      control_api: ${{ steps.filter.outputs.control_api }}
+      go: ${{ steps.filter.outputs.go }}
+      rust: ${{ steps.filter.outputs.rust }}
+      node_gateway: ${{ steps.filter.outputs.node_gateway }}
+      dashboard: ${{ steps.filter.outputs.dashboard }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            control_api:
+              - 'services/control-api/**'
+              - '.github/workflows/**'
+            go:
+              - 'services/sim-engine/**'
+              - 'services/ingestion-gateway/**'
+              - '.github/workflows/**'
+            rust:
+              - 'services/stream-processor/**'
+              - '.github/workflows/**'
+            node_gateway:
+              - 'services/stream-gateway/**'
+              - '.github/workflows/**'
+            dashboard:
+              - 'dashboard/**'
+              - '.github/workflows/**'
+
   control-api:
+    needs: changes
+    if: needs.changes.outputs.control_api == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -21,6 +58,8 @@ jobs:
       - run: pytest
 
   sim-engine:
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -30,9 +69,12 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
-      - run: go test ./...
+      - run: go vet ./...
+      - run: go test -race ./...
 
   ingestion-gateway:
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -42,22 +84,26 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
-      - run: go mod tidy
-      - run: go test ./...
+      - run: go vet ./...
+      - run: go test -race ./...
 
   stream-processor:
+    needs: changes
+    if: needs.changes.outputs.rust == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: services/stream-processor
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.89
       - run: cargo fmt --check
       - run: cargo clippy -- -D warnings
       - run: cargo test
 
   stream-gateway:
+    needs: changes
+    if: needs.changes.outputs.node_gateway == 'true' || github.event_name == 'push'
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -67,6 +113,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - run: npm install
+      - run: npm ci
       - run: npm run build
       - run: npm test
+
+  dashboard:
+    needs: changes
+    if: needs.changes.outputs.dashboard == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: npm ci
+      - run: npm run build

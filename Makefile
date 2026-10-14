@@ -1,7 +1,7 @@
 COMPOSE ?= docker compose
 ENV_FILE ?= .env
 
-.PHONY: infra up down logs migrate contracts test lint \
+.PHONY: infra up down logs migrate contracts test lint e2e load \
 	test-control-api test-sim-engine test-ingestion-gateway test-stream-processor test-stream-gateway
 
 infra:
@@ -52,5 +52,13 @@ seed:
 	python scripts/demo.py $(API_URL)
 
 demo: seed
+
+e2e:
+	pip install -q httpx
+	python tests/e2e/smoke.py
+
+load:
+	@test -n "$(API_KEY)" || (echo "Set API_KEY=mc_live_..." && exit 1)
+	k6 run tests/load/ingest_smoke.js
 
 API_URL ?= http://localhost:8000
