@@ -1,9 +1,10 @@
 FROM golang:1.23-alpine AS build
 WORKDIR /src
-COPY go.mod ./
+COPY go.mod go.sum ./
+RUN go mod download
 COPY cmd ./cmd
 COPY internal ./internal
-RUN go mod tidy && go build -o /ingestion-gateway ./cmd/ingestion-gateway
+RUN CGO_ENABLED=0 go build -o /ingestion-gateway ./cmd/ingestion-gateway
 
 FROM alpine:3.20
 RUN apk add --no-cache wget

@@ -16,10 +16,7 @@ type Producer struct {
 }
 
 func NewProducer(brokers, topic string) (*Producer, error) {
-	cl, err := kgo.NewClient(
-		kgo.SeedBrokers(brokers),
-		kgo.AllowAutoTopicCreation(false),
-	)
+	cl, err := kgo.NewClient(kgo.SeedBrokers(brokers))
 	if err != nil {
 		return nil, err
 	}

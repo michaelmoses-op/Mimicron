@@ -30,7 +30,7 @@ make test
 
 Service ports: control-api `8000`, ingestion-gateway `8081`, stream-gateway `8082`, Redpanda Kafka `19092`, Timescale `5433`.
 
-**Object storage:** Compose uses [RustFS](https://rustfs.com/) (`rustfs/rustfs`) on ports `9000`/`9001` because official `minio/minio` and `minio/mc` images were removed from Docker Hub. Env vars still use the `MINIO_*` prefix; the service name remains `minio` on the Docker network.
+**Object storage:** Compose uses [RustFS](https://rustfs.com/) (`rustfs/rustfs`) on ports `9000`/`9001` because official `minio/minio` and `minio/mc` images were removed from Docker Hub. Env vars still use the `MINIO_*` prefix; the service name remains `minio` on the Docker network. During `make infra`, the one-shot `minio-init` container prints `S3 bucket mimicron-archives ready` — that is normal (creates the archive bucket for a later replay milestone; the live demo does not use it yet).
 
 ## Milestone status
 
