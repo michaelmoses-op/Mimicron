@@ -1,7 +1,7 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct Envelope {
     pub schema_version: i32,
     pub event_id: String,

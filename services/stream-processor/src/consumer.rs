@@ -100,7 +100,7 @@ pub async fn run(cfg: Config, sink: Sink) -> Result<()> {
 async fn send_dlq(producer: &FutureProducer, topic: &str, payload: &[u8], _reason: &str) {
     let _ = producer
         .send(
-            FutureRecord::to(topic).payload(payload),
+            FutureRecord::to(topic).key("").payload(payload),
             Timeout::After(Duration::from_secs(3)),
         )
         .await;
