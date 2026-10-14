@@ -3,9 +3,6 @@ set -eu
 
 ENDPOINT="${MINIO_ENDPOINT:-http://minio:9000}"
 BUCKET="${MINIO_BUCKET:-mimicron-archives}"
-USER="${MINIO_ROOT_USER:-mimicron}"
-PASS="${MINIO_ROOT_PASSWORD:-mimicron_dev_minio}"
 
-mc alias set local "$ENDPOINT" "$USER" "$PASS"
-mc mb --ignore-existing "local/${BUCKET}"
-echo "MinIO bucket ${BUCKET} ready."
+aws --endpoint-url "$ENDPOINT" s3 mb "s3://${BUCKET}" 2>/dev/null || true
+echo "S3 bucket ${BUCKET} ready at ${ENDPOINT}."

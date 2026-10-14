@@ -90,13 +90,18 @@ services:
     entrypoint: ["/bin/sh", "/init.sh"]
     restart: "no"
 
+  # MinIO CE images were removed from Docker Hub (2026); RustFS is S3-compatible for local dev.
   minio:
     profiles: [infra, services, all]
-    image: minio/minio:RELEASE.2024-09-22T00-33-43Z
-    command: server /data --console-address ":9001"
+    image: rustfs/rustfs:latest
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-mimicron}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-mimicron_dev_minio}
+      RUSTFS_VOLUMES: /data
+      RUSTFS_ADDRESS: 0.0.0.0:9000
+      RUSTFS_CONSOLE_ADDRESS: 0.0.0.0:9001
+      RUSTFS_CONSOLE_ENABLE: "true"
+      RUSTFS_UNSAFE_BYPASS_DISK_CHECK: "true"
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -108,14 +113,15 @@ services:
 
   minio-init:
     profiles: [infra, all]
-    image: minio/mc:RELEASE.2024-09-22T00-00-51Z
+    image: amazon/aws-cli:2.22.0
     depends_on:
       minio:
         condition: service_healthy
     environment:
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-mimicron}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-mimicron_dev_minio}
       MINIO_ENDPOINT: http://minio:9000
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-mimicron}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-mimicron_dev_minio}
       MINIO_BUCKET: ${MINIO_BUCKET:-mimicron-archives}
     volumes:
       - ./infra/docker/minio-init.sh:/init.sh:ro

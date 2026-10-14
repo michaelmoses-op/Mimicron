@@ -30,6 +30,8 @@ make test
 
 Service ports: control-api `8000`, ingestion-gateway `8081`, stream-gateway `8082`, Redpanda Kafka `19092`, Timescale `5433`.
 
+**Object storage:** Compose uses [RustFS](https://rustfs.com/) (`rustfs/rustfs`) on ports `9000`/`9001` because official `minio/minio` and `minio/mc` images were removed from Docker Hub. Env vars still use the `MINIO_*` prefix; the service name remains `minio` on the Docker network.
+
 ## Milestone status
 
 - **M0 (foundation):** monorepo skeleton, infra compose, contracts validation, Timescale migrations, CI
