@@ -1,6 +1,8 @@
 # control-api
 
-Python / FastAPI control plane: auth, tenants, API keys, quotas (M1).
+Python / FastAPI control plane: auth, tenants, API keys, quotas, scenarios/runs, telemetry/traffic/anomalies/usage queries.
+
+**Auth:** Human users use Bearer access JWTs. Machine clients use `X-API-Key` or `Authorization: Bearer mc_live_…` with scopes `read`, `simulate`, `ingest`, or `admin`. Query routes require `read` (JWT users bypass scope checks). Run control requires `simulate`. API key CRUD remains human-JWT only.
 
 ## Run locally (with repo infra)
 

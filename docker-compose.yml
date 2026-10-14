@@ -256,6 +256,10 @@ services:
     profiles: [services, all]
     build: ./services/stream-gateway
     depends_on:
+      control-api:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
       redpanda:
         condition: service_healthy
       redpanda-init:
@@ -267,6 +271,9 @@ services:
       PORT: "8082"
       KAFKA_BROKERS: redpanda:9092
       JWT_SECRET: ${JWT_SECRET:-dev-jwt-secret-change-me}
+      REDIS_URL: redis://redis:6379/0
+      CONTROL_API_URL: http://control-api:8000
+      INTERNAL_API_SECRET: ${INTERNAL_API_SECRET:-dev-internal-secret-change-me}
 
   dashboard:
     profiles: [services, all]

@@ -14,6 +14,9 @@
     <a href="/runs" class:active={$page.url.pathname.startsWith("/runs")}>Runs</a>
     <a href="/traffic" class:active={$page.url.pathname.startsWith("/traffic")}>Traffic</a>
     <a href="/scenarios" class:active={$page.url.pathname.startsWith("/scenarios")}>Scenarios</a>
+    <a href="/anomalies" class:active={$page.url.pathname.startsWith("/anomalies")}>Anomalies</a>
+    <a href="/usage" class:active={$page.url.pathname.startsWith("/usage")}>Usage</a>
+    <a href="/api-keys" class:active={$page.url.pathname.startsWith("/api-keys")}>API keys</a>
     <a href="/login">Login</a>
   </nav>
 </header>

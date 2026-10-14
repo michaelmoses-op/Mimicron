@@ -7,7 +7,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.deps import SessionDep, UserDep
+from app.core.deps import ReadDep, SessionDep, SimulateDep, tenant_id_of
 from app.db.models import Run
 from app.schemas.runs import RunCreate, RunOut, RunPage
 from app.services import run_service
@@ -16,34 +16,35 @@ router = APIRouter(prefix="/v1/runs", tags=["runs"])
 
 
 @router.post("", status_code=status.HTTP_202_ACCEPTED, response_model=RunOut)
-async def start_run(body: RunCreate, principal: UserDep, session: SessionDep) -> RunOut:
+async def start_run(body: RunCreate, principal: SimulateDep, session: SessionDep) -> RunOut:
     run, _token = await run_service.start_run(
         session,
-        tenant_id=principal.tenant_id,
+        tenant_id=tenant_id_of(principal),
         scenario_id=body.scenario_id,
         version=body.version,
         seed_override=body.seed_override,
         mode_override=body.mode_override,
         speed_override=body.speed_override,
     )
-    return _to_out(await _load_run(session, principal.tenant_id, run.id))
+    return _to_out(await _load_run(session, tenant_id_of(principal), run.id))
 
 
 @router.get("/{run_id}", response_model=RunOut)
-async def get_run(run_id: uuid.UUID, principal: UserDep, session: SessionDep) -> RunOut:
-    return _to_out(await _load_run(session, principal.tenant_id, run_id))
+async def get_run(run_id: uuid.UUID, principal: ReadDep, session: SessionDep) -> RunOut:
+    return _to_out(await _load_run(session, tenant_id_of(principal), run_id))
 
 
 @router.get("", response_model=RunPage)
 async def list_runs(
-    principal: UserDep,
+    principal: ReadDep,
     session: SessionDep,
     limit: int = Query(50, ge=1, le=500),
     status_filter: str | None = Query(None, alias="status"),
 ) -> RunPage:
+    tid = tenant_id_of(principal)
     q = (
         select(Run)
-        .where(Run.tenant_id == principal.tenant_id)
+        .where(Run.tenant_id == tid)
         .options(selectinload(Run.scenario_version))
         .order_by(Run.created_at.desc())
         .limit(limit)
@@ -56,16 +57,17 @@ async def list_runs(
 
 @router.post("/{run_id}/{action}", status_code=status.HTTP_202_ACCEPTED, response_model=RunOut)
 async def control_run(
-    run_id: uuid.UUID, action: str, principal: UserDep, session: SessionDep
+    run_id: uuid.UUID, action: str, principal: SimulateDep, session: SessionDep
 ) -> RunOut:
     if action not in {"stop", "pause", "resume"}:
         from app.core.errors import ProblemError
 
         raise ProblemError(status=422, title="Invalid action")
+    tid = tenant_id_of(principal)
     run = await run_service.control_run(
-        session, tenant_id=principal.tenant_id, run_id=run_id, action=action
+        session, tenant_id=tid, run_id=run_id, action=action
     )
-    return _to_out(await _load_run(session, principal.tenant_id, run.id))
+    return _to_out(await _load_run(session, tenant_id_of(principal), run.id))
 
 
 async def _load_run(session: AsyncSession, tenant_id: uuid.UUID, run_id: uuid.UUID) -> Run:

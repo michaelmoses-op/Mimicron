@@ -42,11 +42,24 @@ Service ports: control-api `8000`, ingestion-gateway `8081`, stream-gateway `808
 - **M0 (foundation):** monorepo skeleton, infra compose, contracts validation, Timescale migrations, CI
 - **M1 (control-api identity/keys):** auth, API keys, Alembic, Redis cache/rate limits
 - **M2 (ingestion-gateway):** `POST /v1/ingest`, auth, rate limit, Kafka publish
-- **M3 (stream-processor):** consume `telemetry.raw`, dedupe, Timescale sink (detectors next)
+- **M3 (stream-processor):** consume `telemetry.raw`, dedupe, Timescale sink, EWMA/stuck/dropout detectors → `anomalies` + `anomalies.detected`
 - **M4 (sim + scenarios/runs):** control-api scenarios/runs/telemetry, sim-engine, `make demo`
-- **M5 (dashboard + SSE):** SvelteKit UI on `:5173`, stream-gateway SSE on `:8082`, scenarios list + start run, run stop/refresh
+- **M5 (dashboard + SSE):** SvelteKit UI on `:5173`, stream-gateway SSE on `:8082`, scenarios/runs/traffic, API keys, usage, anomalies pages
 - **M6 (traffic):** sim-engine traffic profiles + `scale_traffic`, stream-processor `traffic_rollups_10s`, `GET /v1/traffic`, dashboard `/traffic` (see `docs/backlog.md` for M6 follow-ups)
 - **M7 (CI/CD):** path-filtered unit CI, Compose integration + k6, GHCR image publish — [docs/ci.md](docs/ci.md)
 - **M8 (observability + deploy):** Prometheus/Grafana/Jaeger/OTel, Caddy prod overlay, VM bootstrap notes — [docs/observability.md](docs/observability.md), [docs/deployment.md](docs/deployment.md)
 - **Portfolio follow-ups:** fill [docs/load-test-results.md](docs/load-test-results.md); deeper OTel in all services (`docs/backlog.md`)
 - **Smoke test:** [tests/e2e/INGEST.md](tests/e2e/INGEST.md) or `make demo` after `make up`
+
+## External developers (API keys)
+
+1. Register in the dashboard (`/login`) or `POST /v1/auth/register`.
+2. Create scoped keys on **API keys** (`/api-keys`): e.g. `ingest` for `POST /v1/ingest`, `read` for queries and SSE, `simulate` for runs, `admin` for all machine scopes.
+3. Ingest: `Authorization: Bearer mc_live_…` or `X-API-Key` on ingestion-gateway `:8081`.
+4. Query: same key on control-api `:8000` for `/v1/telemetry`, `/v1/traffic`, `/v1/anomalies`, `/v1/usage`, `/v1/scenarios` (read), `/v1/runs` (read list/get).
+5. Runs: key with `simulate` for `POST /v1/runs` and stop/pause/resume.
+6. Live stream: `POST /v1/stream-tokens` with a `read` key, then `GET /v1/stream?token=…` on stream-gateway `:8082` (API keys with `read` also work directly).
+
+Human-only (JWT): create/revoke API keys, create scenarios, account `/v1/me`.
+
+Set strong `JWT_SECRET` and `INTERNAL_API_SECRET` in `.env` before exposing the stack.

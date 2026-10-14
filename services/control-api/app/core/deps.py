@@ -83,6 +83,44 @@ async def get_user_principal(
 UserDep = Annotated[UserPrincipal, Depends(get_user_principal)]
 
 
+def tenant_id_of(principal: Principal) -> uuid.UUID:
+    return principal.tenant_id
+
+
+def principal_has_scope(principal: Principal, *scopes: str) -> bool:
+    if isinstance(principal, UserPrincipal):
+        return True
+    if "admin" in principal.scopes:
+        return True
+    return any(s in principal.scopes for s in scopes)
+
+
+class _RequireScopes:
+    def __init__(self, *scopes: str) -> None:
+        self.scopes = scopes
+
+    async def __call__(
+        self,
+        request: Request,
+        session: SessionDep,
+        creds: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer_scheme)],
+        api_key: Annotated[str | None, Depends(api_key_header)],
+    ) -> Principal:
+        principal = await get_api_key_or_user(request, session, creds, api_key)
+        if not principal_has_scope(principal, *self.scopes):
+            raise ProblemError(
+                status=403,
+                title="Insufficient scope",
+                detail=f"Requires one of: {', '.join(self.scopes)}",
+            )
+        return principal
+
+
+ReadDep = Annotated[Principal, Depends(_RequireScopes("read"))]
+SimulateDep = Annotated[Principal, Depends(_RequireScopes("simulate"))]
+AdminDep = Annotated[Principal, Depends(_RequireScopes("admin"))]
+
+
 async def get_api_key_or_user(
     request: Request,
     session: SessionDep,

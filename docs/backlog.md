@@ -30,7 +30,6 @@ Items deferred from AGENTS milestones; not blocking local demo.
 
 ## M3 stream-processor
 
-- Anomaly detectors (EWMA, stuck-value, dropout) and `anomalies.detected`
 - DLQ with reason headers; Prometheus metrics; consumer lag
 
 ## M4 sim-engine / control-api
@@ -41,9 +40,8 @@ Items deferred from AGENTS milestones; not blocking local demo.
 
 ## M5 dashboard / stream-gateway
 
-- API key manager UI; scenario editor with `:validate`
-- uPlot live charts; anomaly feed; usage page
-- OpenAPI-generated client; stream-gateway API-key via Redis cache
+- Scenario editor with `:validate`; uPlot live charts on runs
+- OpenAPI-generated client
 - SSE `Last-Event-ID` resume; per-tenant connection limits
 
 ## Infra

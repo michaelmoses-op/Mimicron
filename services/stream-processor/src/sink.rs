@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
+use crate::detect::AnomalyRecord;
 use crate::envelope::Envelope;
 use crate::rollups::{percentile, BucketKey, BucketStats};
 
@@ -119,6 +120,36 @@ impl Sink {
             .bind(p95)
             .bind(p99)
             .bind(stats.bytes as i64)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(())
+    }
+
+    pub async fn insert_anomalies(&self, rows: &[AnomalyRecord]) -> Result<()> {
+        if rows.is_empty() {
+            return Ok(());
+        }
+        let mut tx = self.pool.begin().await?;
+        for row in rows {
+            sqlx::query(
+                r#"
+                INSERT INTO anomalies
+                  (time, tenant_id, run_id, device_id, metric, detector, severity, score, value, expected)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                "#,
+            )
+            .bind(row.time)
+            .bind(row.tenant_id)
+            .bind(row.run_id)
+            .bind(&row.device_id)
+            .bind(&row.metric)
+            .bind(&row.detector)
+            .bind(&row.severity)
+            .bind(row.score)
+            .bind(row.value)
+            .bind(row.expected)
             .execute(&mut *tx)
             .await?;
         }

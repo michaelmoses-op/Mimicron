@@ -1,6 +1,7 @@
 mod config;
 mod consumer;
 mod dedupe;
+mod detect;
 mod envelope;
 mod rollups;
 mod sink;

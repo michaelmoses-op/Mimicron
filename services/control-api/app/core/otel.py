@@ -6,14 +6,25 @@ import os
 
 from opentelemetry import trace
 from opentelemetry.context import attach, detach
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from opentelemetry.propagate import extract, set_global_textmap
 from opentelemetry.propagators.composite import CompositePropagator
-from opentelemetry.sdk.resources import Resource
-from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.trace.propagation.tracecontext import TraceContextTextMapPropagator
+
+try:
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+    _OTEL_SDK = True
+except ImportError:  # pragma: no cover - minimal dev installs
+    _OTEL_SDK = False
+    OTLPSpanExporter = None  # type: ignore[misc, assignment]
+    FastAPIInstrumentor = None  # type: ignore[misc, assignment]
+    Resource = None  # type: ignore[misc, assignment]
+    TracerProvider = None  # type: ignore[misc, assignment]
+    BatchSpanProcessor = None  # type: ignore[misc, assignment]
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import Response
@@ -27,7 +38,7 @@ def configure_otel(service_name: str) -> None:
         return
     set_global_textmap(CompositePropagator([TraceContextTextMapPropagator()]))
     endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
-    if endpoint:
+    if endpoint and _OTEL_SDK:
         resource = Resource.create({"service.name": service_name})
         provider = TracerProvider(resource=resource)
         exporter = OTLPSpanExporter(endpoint=f"{endpoint.rstrip('/')}/v1/traces")
@@ -37,7 +48,7 @@ def configure_otel(service_name: str) -> None:
 
 
 def instrument_fastapi(app: object) -> None:
-    if os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip():
+    if _OTEL_SDK and os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip():
         FastAPIInstrumentor.instrument_app(app)  # type: ignore[arg-type]
 
 

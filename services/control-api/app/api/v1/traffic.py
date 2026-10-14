@@ -5,7 +5,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Query
 
-from app.core.deps import UserDep
+from app.core.deps import ReadDep, tenant_id_of
 from app.timescale.pool import get_timescale_engine
 from app.timescale.queries import query_traffic_rollups
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/v1", tags=["telemetry"])
 
 @router.get("/traffic")
 async def get_traffic_rollups(
-    principal: UserDep,
+    principal: ReadDep,
     from_ts: datetime = Query(..., alias="from"),
     to_ts: datetime = Query(..., alias="to"),
     run_id: uuid.UUID | None = None,
@@ -24,7 +24,7 @@ async def get_traffic_rollups(
 ) -> dict:
     rows = await query_traffic_rollups(
         get_timescale_engine(),
-        tenant_id=principal.tenant_id,
+        tenant_id=tenant_id_of(principal),
         from_ts=from_ts,
         to_ts=to_ts,
         run_id=run_id,

@@ -10,7 +10,7 @@ from app.core.security import hash_api_key
 async def test_register_login_me_and_api_keys(client: AsyncClient) -> None:
     reg = await client.post(
         "/v1/auth/register",
-        json={"email": "dev@mimicron.test", "password": "password1234", "tenant_name": "Acme"},
+        json={"email": "dev@example.com", "password": "password1234", "tenant_name": "Acme"},
     )
     assert reg.status_code == 201, reg.text
     tokens = reg.json()
@@ -20,13 +20,13 @@ async def test_register_login_me_and_api_keys(client: AsyncClient) -> None:
     me = await client.get("/v1/me", headers={"Authorization": f"Bearer {access}"})
     assert me.status_code == 200
     body = me.json()
-    assert body["email"] == "dev@mimicron.test"
+    assert body["email"] == "dev@example.com"
     assert body["tenant_name"] == "Acme"
     assert body["quota"]["max_devices"] == 500
 
     login = await client.post(
         "/v1/auth/login",
-        json={"email": "dev@mimicron.test", "password": "password1234"},
+        json={"email": "dev@example.com", "password": "password1234"},
     )
     assert login.status_code == 200
 
@@ -76,7 +76,7 @@ async def test_register_login_me_and_api_keys(client: AsyncClient) -> None:
 
 @pytest.mark.asyncio
 async def test_duplicate_register_conflict(client: AsyncClient) -> None:
-    payload = {"email": "dup@mimicron.test", "password": "password1234"}
+    payload = {"email": "dup@example.com", "password": "password1234"}
     assert (await client.post("/v1/auth/register", json=payload)).status_code == 201
     dup = await client.post("/v1/auth/register", json=payload)
     assert dup.status_code == 409

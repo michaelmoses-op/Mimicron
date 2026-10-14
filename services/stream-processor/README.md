@@ -2,7 +2,7 @@
 
 Rust consumer for `telemetry.raw`: validate, dedupe, batch-write TimescaleDB, publish `telemetry.processed`.
 
-M3 core pipeline is implemented; streaming **anomaly detectors** (EWMA, stuck-value, dropout) are the next increment on this service.
+Runs streaming **anomaly detectors** (EWMA z-score, stuck-value, dropout) per `(tenant, device, metric)`, writes `anomalies` and publishes `anomalies.detected`.
 
 ```bash
 cd services/stream-processor

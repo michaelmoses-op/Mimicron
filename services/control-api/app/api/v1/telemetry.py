@@ -5,7 +5,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Query
 
-from app.core.deps import UserDep
+from app.core.deps import ReadDep, tenant_id_of
 from app.timescale.pool import get_timescale_engine
 from app.timescale.queries import query_telemetry
 
@@ -14,7 +14,7 @@ router = APIRouter(prefix="/v1", tags=["telemetry"])
 
 @router.get("/telemetry")
 async def get_telemetry(
-    principal: UserDep,
+    principal: ReadDep,
     metric: str = Query(...),
     from_ts: datetime = Query(..., alias="from"),
     to_ts: datetime = Query(..., alias="to"),
@@ -24,7 +24,7 @@ async def get_telemetry(
 ) -> dict:
     rows = await query_telemetry(
         get_timescale_engine(),
-        tenant_id=principal.tenant_id,
+        tenant_id=tenant_id_of(principal),
         metric=metric,
         from_ts=from_ts,
         to_ts=to_ts,

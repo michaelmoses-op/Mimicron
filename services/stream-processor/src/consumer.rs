@@ -11,6 +11,7 @@ use chrono::{Duration as ChronoDuration, Utc};
 
 use crate::config::Config;
 use crate::dedupe::Dedupe;
+use crate::detect::DetectionPipeline;
 use crate::envelope::Envelope;
 use crate::rollups::TrafficRollups;
 use crate::sink::Sink;
@@ -36,6 +37,7 @@ pub async fn run(cfg: Config, sink: Sink) -> Result<()> {
 
     let mut dedupe = Dedupe::new(50_000);
     let mut traffic_rollups = TrafficRollups::new();
+    let mut detectors = DetectionPipeline::new(50_000);
     loop {
         let mut batch = Vec::new();
         let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
@@ -63,8 +65,10 @@ pub async fn run(cfg: Config, sink: Sink) -> Result<()> {
             continue;
         }
         let events: Vec<Envelope> = batch.iter().map(|(_, e)| e.clone()).collect();
+        let mut anomalies = Vec::new();
         for env in &events {
             traffic_rollups.ingest(env);
+            anomalies.extend(detectors.ingest(env));
         }
         if let Err(err) = sink.write_batch(&events).await {
             error!(?err, "sink failed");
@@ -79,6 +83,22 @@ pub async fn run(cfg: Config, sink: Sink) -> Result<()> {
         let ready = traffic_rollups.drain_ready(Utc::now(), grace);
         if let Err(err) = sink.upsert_traffic_rollups(&ready).await {
             error!(?err, "traffic rollup failed");
+        }
+        if let Err(err) = sink.insert_anomalies(&anomalies).await {
+            error!(?err, "anomaly insert failed");
+        }
+        for anomaly in &anomalies {
+            if let Ok(body) = serde_json::to_vec(anomaly) {
+                let key = format!("{}:{}", anomaly.tenant_id, anomaly.device_id);
+                let _ = producer
+                    .send(
+                        FutureRecord::to(&cfg.anomalies_topic)
+                            .key(&key)
+                            .payload(&body),
+                        Timeout::After(Duration::from_secs(3)),
+                    )
+                    .await;
+            }
         }
         for (_, env) in &batch {
             if let Ok(body) = serde_json::to_vec(env) {

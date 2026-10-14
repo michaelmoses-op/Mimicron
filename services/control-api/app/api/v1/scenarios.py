@@ -5,7 +5,7 @@ import uuid
 from fastapi import APIRouter, Query, status
 from sqlalchemy import select
 
-from app.core.deps import SessionDep, UserDep
+from app.core.deps import ReadDep, SessionDep, UserDep, tenant_id_of
 from app.db.models import Quota, Scenario, ScenarioVersion
 from app.schemas.scenarios import ScenarioOut, ScenarioPage, ScenarioSummary, ScenarioWrite, ValidationResult
 from app.services import scenario_service
@@ -33,23 +33,24 @@ async def validate_scenario(body: ScenarioWrite, principal: UserDep, session: Se
 
 @router.get("/scenarios/{scenario_id}", response_model=ScenarioOut)
 async def get_scenario_route(
-    scenario_id: uuid.UUID, principal: UserDep, session: SessionDep
+    scenario_id: uuid.UUID, principal: ReadDep, session: SessionDep
 ) -> ScenarioOut:
-    row = await scenario_service.get_scenario(session, principal.tenant_id, scenario_id)
+    row = await scenario_service.get_scenario(session, tenant_id_of(principal), scenario_id)
     sv = await scenario_service.get_scenario_version(session, row.id, row.current_version)
     return _to_out(row, sv)
 
 
 @router.get("/scenarios", response_model=ScenarioPage)
 async def list_scenarios(
-    principal: UserDep,
+    principal: ReadDep,
     session: SessionDep,
     limit: int = Query(50, ge=1, le=500),
 ) -> ScenarioPage:
+    tid = tenant_id_of(principal)
     rows = list(
         await session.scalars(
             select(Scenario)
-            .where(Scenario.tenant_id == principal.tenant_id)
+            .where(Scenario.tenant_id == tid)
             .order_by(Scenario.updated_at.desc())
             .limit(limit)
         )

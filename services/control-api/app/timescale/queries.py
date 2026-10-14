@@ -80,3 +80,41 @@ async def query_traffic_rollups(
     async with engine.connect() as conn:
         rows = (await conn.execute(text(sql), params)).mappings().all()
     return [dict(r) for r in rows]
+
+
+async def query_anomalies(
+    engine: AsyncEngine,
+    *,
+    tenant_id: uuid.UUID,
+    from_ts: datetime | None,
+    to_ts: datetime | None,
+    run_id: uuid.UUID | None,
+    device_id: str | None,
+    severity: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    sql = """
+        SELECT time, run_id, device_id, metric, detector, severity, score, value, expected
+        FROM anomalies
+        WHERE tenant_id = :tenant_id
+    """
+    params: dict[str, Any] = {"tenant_id": tenant_id, "limit": limit}
+    if from_ts:
+        sql += " AND time >= :from_ts"
+        params["from_ts"] = from_ts
+    if to_ts:
+        sql += " AND time <= :to_ts"
+        params["to_ts"] = to_ts
+    if run_id:
+        sql += " AND run_id = :run_id"
+        params["run_id"] = run_id
+    if device_id:
+        sql += " AND device_id = :device_id"
+        params["device_id"] = device_id
+    if severity:
+        sql += " AND severity = :severity"
+        params["severity"] = severity
+    sql += " ORDER BY time DESC LIMIT :limit"
+    async with engine.connect() as conn:
+        rows = (await conn.execute(text(sql), params)).mappings().all()
+    return [dict(r) for r in rows]
