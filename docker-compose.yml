@@ -257,7 +257,11 @@ services:
 
   dashboard:
     profiles: [services, all]
-    build: ./dashboard
+    build:
+      context: ./dashboard
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+        VITE_STREAM_URL: ${VITE_STREAM_URL:-http://localhost:8082}
     ports:
       - "${DASHBOARD_PORT:-5173}:80"
     depends_on:
