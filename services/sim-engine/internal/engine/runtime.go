@@ -13,8 +13,12 @@ import (
 	"sync"
 	"time"
 
+	"sync/atomic"
+
 	"github.com/google/uuid"
 	"github.com/twmb/franz-go/pkg/kgo"
+
+	"github.com/mimicron/mimicron/services/sim-engine/internal/traffic"
 )
 
 type Runtime struct {
@@ -126,11 +130,42 @@ func (r *Runtime) executeRun(ctx context.Context, runID, runToken string, scenar
 		duration = 5 * time.Minute
 	}
 	deadline := time.Now().Add(duration)
+	runStart := time.Now()
 	deviceTypes, _ := spec["deviceTypes"].(map[string]any)
 	fleets, _ := spec["fleets"].([]any)
+	trafficProfiles, _ := spec["traffic"].([]any)
+	scales := map[string]*atomic.Uint64{}
+	for _, tp := range trafficProfiles {
+		raw, _ := tp.(map[string]any)
+		name, _ := raw["name"].(string)
+		if name != "" {
+			scales[name] = traffic.ScaleMultiplier(1)
+		}
+	}
+	watchScaleTraffic(ctx, spec, runStart, scales)
 	var wg sync.WaitGroup
 	events := int64(0)
 	var eventsMu sync.Mutex
+	for i, tp := range trafficProfiles {
+		raw, _ := tp.(map[string]any)
+		profile := traffic.ParseProfile(raw)
+		scale := scales[profile.Name]
+		profileSeed := seed + int64(i+1)*7919
+		wg.Add(1)
+		go func(p traffic.Profile, scale *atomic.Uint64, profileSeed int64) {
+			defer wg.Done()
+			emit := func(clientID string, seq int, data map[string]any) error {
+				err := r.emitEvent(runToken, runID, clientID, "traffic", "", seq, data)
+				if err == nil {
+					eventsMu.Lock()
+					events++
+					eventsMu.Unlock()
+				}
+				return err
+			}
+			traffic.Run(ctx, p, profileSeed, runStart, deadline, scale, emit)
+		}(profile, scale, profileSeed)
+	}
 	for _, f := range fleets {
 		fleet, _ := f.(map[string]any)
 		count := int(toFloat(fleet["count"]))
@@ -157,13 +192,13 @@ func (r *Runtime) executeRun(ctx context.Context, runID, runToken string, scenar
 						if time.Now().After(deadline) {
 							return
 						}
-						data := map[string]float64{}
+						data := map[string]any{}
 						for name, m := range metrics {
 							metric, _ := m.(map[string]any)
 							gen, _ := metric["generator"].(map[string]any)
 							data[name] = evalGenerator(gen, rng, t)
 						}
-						if err := r.emit(runToken, runID, devID, dtName, seq, data); err == nil {
+						if err := r.emitEvent(runToken, runID, devID, "telemetry", dtName, seq, data); err == nil {
 							eventsMu.Lock()
 							events++
 							eventsMu.Unlock()
@@ -178,10 +213,15 @@ func (r *Runtime) executeRun(ctx context.Context, runID, runToken string, scenar
 	r.publishEvent(map[string]any{"type": "run.completed", "run_id": runID, "events_emitted": events})
 }
 
-func (r *Runtime) emit(token, runID, deviceID, deviceType string, seq int, data map[string]float64) error {
+func (r *Runtime) emitEvent(
+	token, runID, deviceID, kind, deviceType string,
+	seq int,
+	data map[string]any,
+) error {
 	payload := map[string]any{
 		"events": []map[string]any{{
 			"event_id":    uuid.NewString(),
+			"kind":        kind,
 			"run_id":      runID,
 			"device_id":   deviceID,
 			"device_type": deviceType,

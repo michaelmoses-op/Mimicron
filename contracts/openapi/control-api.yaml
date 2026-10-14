@@ -235,6 +235,22 @@ paths:
         "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TelemetryPage" } } } }
         "422": { $ref: "#/components/responses/Problem" }
 
+  /v1/traffic:
+    get:
+      tags: [telemetry]
+      summary: Query 10s traffic rollups (RPS, errors, latency percentiles). Tenant-scoped.
+      parameters:
+        - { name: run_id, in: query, schema: { type: string, format: uuid } }
+        - { name: flow, in: query, schema: { type: string } }
+        - { name: region, in: query, schema: { type: string } }
+        - { name: from, in: query, required: true, schema: { type: string, format: date-time } }
+        - { name: to, in: query, required: true, schema: { type: string, format: date-time } }
+        - { $ref: "#/components/parameters/Limit" }
+        - { $ref: "#/components/parameters/Cursor" }
+      responses:
+        "200": { description: OK, content: { application/json: { schema: { $ref: "#/components/schemas/TrafficRollupPage" } } } }
+        "422": { $ref: "#/components/responses/Problem" }
+
   /v1/anomalies:
     get:
       tags: [telemetry]
@@ -494,6 +510,29 @@ components:
         metric: { type: string }
         interval: { type: string }
         items: { type: array, items: { $ref: "#/components/schemas/TelemetryPoint" } }
+        next_cursor: { type: [string, "null"] }
+
+    TrafficRollup:
+      type: object
+      required: [time, requests]
+      properties:
+        time: { type: string, format: date-time }
+        run_id: { type: [string, "null"], format: uuid }
+        flow: { type: string }
+        region: { type: string }
+        requests: { type: integer }
+        errors: { type: integer }
+        error_rate: { type: number, description: "errors / requests" }
+        rps: { type: number, description: "requests per second (bucket is 10s)" }
+        p50_ms: { type: number }
+        p95_ms: { type: number }
+        p99_ms: { type: number }
+        bytes: { type: integer }
+    TrafficRollupPage:
+      type: object
+      properties:
+        interval: { type: string, enum: [10s] }
+        items: { type: array, items: { $ref: "#/components/schemas/TrafficRollup" } }
         next_cursor: { type: [string, "null"] }
 
     Anomaly:

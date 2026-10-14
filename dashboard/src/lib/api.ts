@@ -64,6 +64,19 @@ export async function startRun(
   return res.json();
 }
 
+export async function queryTraffic(
+  token: string,
+  params: { run_id?: string; from: string; to: string; flow?: string; region?: string },
+) {
+  const q = new URLSearchParams({ from: params.from, to: params.to });
+  if (params.run_id) q.set("run_id", params.run_id);
+  if (params.flow) q.set("flow", params.flow);
+  if (params.region) q.set("region", params.region);
+  const res = await fetch(`${API}/v1/traffic?${q}`, { headers: authHeaders(token) });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function controlRun(token: string, runId: string, action: "stop" | "pause" | "resume") {
   const res = await fetch(`${API}/v1/runs/${runId}/${action}`, {
     method: "POST",

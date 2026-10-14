@@ -1,3 +1,11 @@
+# Backlog (post M6 slice)
+
+## M6 follow-ups
+
+- Merge percentile stats correctly on rollup upsert (t-digest / reservoir) instead of last-batch overwrite
+- Virtual-clock timeline for device + traffic (scale_traffic at scenario `at:` offsets in accelerated runs)
+- Dedicated `scenarios/examples/api-traffic.yaml` smoke with low rate for CI
+
 # Backlog (post M4/M5 slice)
 
 Items deferred from AGENTS milestones; not blocking local demo.

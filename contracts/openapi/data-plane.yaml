@@ -108,7 +108,7 @@ components:
         data:
           type: object
           maxProperties: 64
-          description: "telemetry: metric -> number. traffic: {session_id, client_id, method, path, status, latency_ms, bytes, region}"
+          description: "telemetry: metric -> number. traffic: {session_id, client_id, flow, method, path, status, latency_ms, bytes, region}"
           additionalProperties: true
     IngestResponse:
       type: object

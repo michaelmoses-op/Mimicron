@@ -7,9 +7,12 @@ use rdkafka::util::Timeout;
 use std::time::Duration;
 use tracing::{error, info, warn};
 
+use chrono::{Duration as ChronoDuration, Utc};
+
 use crate::config::Config;
 use crate::dedupe::Dedupe;
 use crate::envelope::Envelope;
+use crate::rollups::TrafficRollups;
 use crate::sink::Sink;
 
 pub async fn run(cfg: Config, sink: Sink) -> Result<()> {
@@ -32,6 +35,7 @@ pub async fn run(cfg: Config, sink: Sink) -> Result<()> {
         .context("create producer")?;
 
     let mut dedupe = Dedupe::new(50_000);
+    let mut traffic_rollups = TrafficRollups::new();
     loop {
         let mut batch = Vec::new();
         let deadline = tokio::time::Instant::now() + Duration::from_millis(500);
@@ -59,6 +63,9 @@ pub async fn run(cfg: Config, sink: Sink) -> Result<()> {
             continue;
         }
         let events: Vec<Envelope> = batch.iter().map(|(_, e)| e.clone()).collect();
+        for env in &events {
+            traffic_rollups.ingest(env);
+        }
         if let Err(err) = sink.write_batch(&events).await {
             error!(?err, "sink failed");
             for (msg, _) in &batch {
@@ -67,6 +74,11 @@ pub async fn run(cfg: Config, sink: Sink) -> Result<()> {
                 }
             }
             continue;
+        }
+        let grace = ChronoDuration::try_seconds(15).unwrap_or_default();
+        let ready = traffic_rollups.drain_ready(Utc::now(), grace);
+        if let Err(err) = sink.upsert_traffic_rollups(&ready).await {
+            error!(?err, "traffic rollup failed");
         }
         for (_, env) in &batch {
             if let Ok(body) = serde_json::to_vec(env) {

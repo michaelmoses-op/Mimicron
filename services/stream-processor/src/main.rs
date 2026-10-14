@@ -2,6 +2,7 @@ mod config;
 mod consumer;
 mod dedupe;
 mod envelope;
+mod rollups;
 mod sink;
 
 use axum::{routing::get, Router};

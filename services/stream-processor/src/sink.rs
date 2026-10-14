@@ -4,6 +4,7 @@ use sqlx::{PgPool, Row};
 use uuid::Uuid;
 
 use crate::envelope::Envelope;
+use crate::rollups::{percentile, BucketKey, BucketStats};
 
 pub struct Sink {
     pool: PgPool,
@@ -79,6 +80,50 @@ impl Sink {
         }
         tx.commit().await?;
         Ok(written)
+    }
+
+    pub async fn upsert_traffic_rollups(&self, buckets: &[(BucketKey, BucketStats)]) -> Result<()> {
+        if buckets.is_empty() {
+            return Ok(());
+        }
+        let mut tx = self.pool.begin().await?;
+        for (key, stats) in buckets {
+            let mut lat = stats.latencies_ms.clone();
+            lat.sort_by(|a, b| a.partial_cmp(b).unwrap());
+            let requests = lat.len() as i64;
+            let p50 = percentile(&lat, 0.5);
+            let p95 = percentile(&lat, 0.95);
+            let p99 = percentile(&lat, 0.99);
+            sqlx::query(
+                r#"
+                INSERT INTO traffic_rollups_10s
+                  (time, tenant_id, run_id, flow, region, requests, errors, p50_ms, p95_ms, p99_ms, bytes)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+                ON CONFLICT (tenant_id, run_id, flow, region, time) DO UPDATE SET
+                  requests = traffic_rollups_10s.requests + EXCLUDED.requests,
+                  errors = traffic_rollups_10s.errors + EXCLUDED.errors,
+                  bytes = traffic_rollups_10s.bytes + EXCLUDED.bytes,
+                  p50_ms = EXCLUDED.p50_ms,
+                  p95_ms = EXCLUDED.p95_ms,
+                  p99_ms = EXCLUDED.p99_ms
+                "#,
+            )
+            .bind(key.bucket)
+            .bind(key.tenant_id)
+            .bind(key.run_id)
+            .bind(&key.flow)
+            .bind(&key.region)
+            .bind(requests)
+            .bind(stats.errors as i64)
+            .bind(p50)
+            .bind(p95)
+            .bind(p99)
+            .bind(stats.bytes as i64)
+            .execute(&mut *tx)
+            .await?;
+        }
+        tx.commit().await?;
+        Ok(())
     }
 
     pub async fn ping(&self) -> Result<()> {

@@ -42,3 +42,41 @@ async def query_telemetry(
     async with engine.connect() as conn:
         rows = (await conn.execute(text(sql), params)).mappings().all()
     return [dict(r) for r in rows]
+
+
+async def query_traffic_rollups(
+    engine: AsyncEngine,
+    *,
+    tenant_id: uuid.UUID,
+    from_ts: datetime,
+    to_ts: datetime,
+    run_id: uuid.UUID | None,
+    flow: str | None,
+    region: str | None,
+    limit: int,
+) -> list[dict[str, Any]]:
+    sql = """
+        SELECT time, run_id, flow, region, requests, errors, p50_ms, p95_ms, p99_ms, bytes
+        FROM traffic_rollups_10s
+        WHERE tenant_id = :tenant_id
+          AND time >= :from_ts AND time <= :to_ts
+    """
+    params: dict[str, Any] = {
+        "tenant_id": tenant_id,
+        "from_ts": from_ts,
+        "to_ts": to_ts,
+        "limit": limit,
+    }
+    if run_id:
+        sql += " AND run_id = :run_id"
+        params["run_id"] = run_id
+    if flow:
+        sql += " AND flow = :flow"
+        params["flow"] = flow
+    if region:
+        sql += " AND region = :region"
+        params["region"] = region
+    sql += " ORDER BY time ASC LIMIT :limit"
+    async with engine.connect() as conn:
+        rows = (await conn.execute(text(sql), params)).mappings().all()
+    return [dict(r) for r in rows]

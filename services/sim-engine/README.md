@@ -1,6 +1,6 @@
 # sim-engine
 
-Go scenario runtime (device + traffic simulation). M0: health endpoints only.
+Go scenario runtime: device telemetry and **traffic** profiles (`kind: traffic` via ingestion). Poisson arrivals, diurnal/spiky patterns, sessions/flows, `scale_traffic` timeline actions.
 
 ```bash
 cd services/sim-engine

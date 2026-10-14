@@ -12,6 +12,7 @@
   <a class="brand" href="/">Mimicron</a>
   <nav>
     <a href="/runs" class:active={$page.url.pathname.startsWith("/runs")}>Runs</a>
+    <a href="/traffic" class:active={$page.url.pathname.startsWith("/traffic")}>Traffic</a>
     <a href="/scenarios" class:active={$page.url.pathname.startsWith("/scenarios")}>Scenarios</a>
     <a href="/login">Login</a>
   </nav>

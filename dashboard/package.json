@@ -8,6 +8,9 @@
     "build": "vite build",
     "preview": "vite preview --port 5173"
   },
+  "dependencies": {
+    "uplot": "^1.6.31"
+  },
   "devDependencies": {
     "@sveltejs/adapter-static": "^3.0.8",
     "@sveltejs/kit": "^2.7.0",
