@@ -1,0 +1,27 @@
+# Production overlay: TLS reverse proxy in front of app services.
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml --profile all up -d
+
+services:
+  caddy:
+    profiles: [services, all]
+    image: caddy:2.8-alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${PUBLIC_DOMAIN:-localhost}
+      ACME_EMAIL: ${ACME_EMAIL:-ops@example.com}
+    volumes:
+      - ./infra/deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./infra/status:/srv/status:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - control-api
+      - ingestion-gateway
+      - stream-gateway
+      - dashboard
+
+volumes:
+  caddy_data:
+  caddy_config:

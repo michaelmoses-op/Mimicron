@@ -26,6 +26,7 @@ from app.core.redis_client import close_redis, get_redis
 from app.db.session import dispose_engine, get_engine
 from app.messaging.kafka import start_kafka, stop_kafka
 from app.messaging.sim_events_worker import run_sim_events_worker
+from app.core.otel import TraceContextMiddleware, configure_otel, instrument_fastapi
 from app.middleware.request_id import RequestIdMiddleware
 from app.timescale.pool import dispose_timescale
 
@@ -49,11 +50,13 @@ async def lifespan(_app: FastAPI):
 
 
 def create_app() -> FastAPI:
+    configure_otel(settings.service_name)
     app = FastAPI(
         title="Mimicron Control API",
         version="0.1.0",
         lifespan=lifespan,
     )
+    instrument_fastapi(app)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -61,6 +64,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    app.add_middleware(TraceContextMiddleware)
     app.add_middleware(RequestIdMiddleware)
     app.include_router(api_router)
 

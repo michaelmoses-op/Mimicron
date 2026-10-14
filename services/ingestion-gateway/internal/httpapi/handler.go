@@ -15,6 +15,7 @@ import (
 	"github.com/mimicron/mimicron/services/ingestion-gateway/internal/model"
 	"github.com/mimicron/mimicron/services/ingestion-gateway/internal/ratelimit"
 	"github.com/mimicron/mimicron/services/ingestion-gateway/internal/usage"
+	"github.com/mimicron/mimicron/services/ingestion-gateway/internal/tracecontext"
 	"github.com/mimicron/mimicron/services/ingestion-gateway/internal/validate"
 )
 
@@ -35,8 +36,9 @@ func (h *Handler) Ingest(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
+	ctx := tracecontext.WithTraceparent(r.Context(), tracecontext.FromRequest(r))
 	cred := extractCredential(r)
-	principal, err := h.verifier.Verify(r.Context(), cred)
+	principal, err := h.verifier.Verify(ctx, cred)
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
@@ -88,7 +90,7 @@ func (h *Handler) Ingest(w http.ResponseWriter, r *http.Request) {
 		}
 		env.TenantID = principal.TenantID.String()
 		env.IngestTime = ingestTime
-		if err := h.producer.Publish(r.Context(), env.TenantID, env); err != nil {
+		if err := h.producer.Publish(ctx, env.TenantID, env); err != nil {
 			h.logger.Error("kafka publish failed", "err", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "publish failed"})
 			return

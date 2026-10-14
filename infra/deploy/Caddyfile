@@ -1,0 +1,51 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# Public status page (static)
+http://{$DOMAIN}:80 {
+	handle /status* {
+		root * /srv/status
+		try_files {path} /index.html
+		file_server
+	}
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy control-api:8000
+	}
+	handle /ingest/* {
+		uri strip_prefix /ingest
+		reverse_proxy ingestion-gateway:8081
+	}
+	handle /stream/* {
+		uri strip_prefix /stream
+		reverse_proxy stream-gateway:8082
+	}
+	handle {
+		reverse_proxy dashboard:80
+	}
+}
+
+# TLS when DOMAIN is not localhost (set PUBLIC_DOMAIN to your DNS name)
+https://{$DOMAIN} {
+	handle /status* {
+		root * /srv/status
+		try_files {path} /index.html
+		file_server
+	}
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy control-api:8000
+	}
+	handle /ingest/* {
+		uri strip_prefix /ingest
+		reverse_proxy ingestion-gateway:8081
+	}
+	handle /stream/* {
+		uri strip_prefix /stream
+		reverse_proxy stream-gateway:8082
+	}
+	handle {
+		reverse_proxy dashboard:80
+	}
+}

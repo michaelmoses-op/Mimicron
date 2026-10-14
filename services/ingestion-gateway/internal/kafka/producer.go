@@ -8,6 +8,7 @@ import (
 	"github.com/twmb/franz-go/pkg/kgo"
 
 	"github.com/mimicron/mimicron/services/ingestion-gateway/internal/model"
+	"github.com/mimicron/mimicron/services/ingestion-gateway/internal/tracecontext"
 )
 
 type Producer struct {
@@ -37,10 +38,10 @@ func (p *Producer) Publish(ctx context.Context, tenantID string, env model.Envel
 		Topic: p.topic,
 		Key:   []byte(key),
 		Value: body,
-		Headers: []kgo.RecordHeader{
+		Headers: tracecontext.KafkaHeaders(ctx, []kgo.RecordHeader{
 			{Key: "tenant_id", Value: []byte(tenantID)},
 			{Key: "schema_version", Value: []byte("1")},
-		},
+		}),
 	}
 	return p.client.ProduceSync(ctx, record).FirstErr()
 }

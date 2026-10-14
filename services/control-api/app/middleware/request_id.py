@@ -22,14 +22,15 @@ class RequestIdMiddleware(BaseHTTPMiddleware):
             response.headers["X-RateLimit-Remaining"] = str(
                 getattr(request.state, "rate_limit_remaining", 0)
             )
-        logging.getLogger("control-api").info(
-            "request",
-            extra={
-                "request_id": request_id,
-                "http_method": request.method,
-                "path": request.url.path,
-                "status": response.status_code,
-                "duration_ms": round(duration_ms, 2),
-            },
-        )
+        extra: dict[str, object] = {
+            "request_id": request_id,
+            "http_method": request.method,
+            "path": request.url.path,
+            "status": response.status_code,
+            "duration_ms": round(duration_ms, 2),
+        }
+        trace_id = getattr(request.state, "trace_id", "")
+        if trace_id:
+            extra["trace_id"] = trace_id
+        logging.getLogger("control-api").info("request", extra=extra)
         return response

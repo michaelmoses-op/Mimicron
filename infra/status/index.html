@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>Mimicron status</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        max-width: 40rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+        line-height: 1.5;
+      }
+      .ok {
+        color: #059669;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Mimicron</h1>
+    <p class="ok">Platform operational (static status page).</p>
+    <p>
+      API health:
+      <a href="/api/healthz">/api/healthz</a> · Ingest:
+      <a href="/ingest/healthz">/ingest/healthz</a>
+    </p>
+    <p><small>Replace with automated checks (Prometheus / blackbox) in a later iteration.</small></p>
+  </body>
+</html>

@@ -166,6 +166,8 @@ services:
       TIMESCALE_URL: postgresql+asyncpg://${TIMESCALE_USER:-mimicron}:${TIMESCALE_PASSWORD:-mimicron_dev}@timescale:5432/${TIMESCALE_DB:-mimicron_ts}
       CONTRACTS_DIR: /contracts
       INGESTION_GATEWAY_URL: http://ingestion-gateway:8081
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: control-api
     volumes:
       - ./contracts:/contracts:ro
     healthcheck:
@@ -280,7 +282,52 @@ services:
       - stream-gateway
     healthcheck:
       <<: *health-defaults
-      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost:8082/healthz"]
+      test: ["CMD", "wget", "-q", "-O", "-", "http://localhost/"]
+
+  prometheus:
+    profiles: [observability, all]
+    image: prom/prometheus:v2.55.1
+    volumes:
+      - ./infra/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    depends_on:
+      - control-api
+      - ingestion-gateway
+
+  grafana:
+    profiles: [observability, all]
+    image: grafana/grafana:11.3.0
+    environment:
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD:-admin}
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./infra/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    ports:
+      - "${GRAFANA_PORT:-3001}:3000"
+    depends_on:
+      - prometheus
+
+  jaeger:
+    profiles: [observability, all]
+    image: jaegertracing/all-in-one:1.62
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "${JAEGER_UI_PORT:-16686}:16686"
+
+  otel-collector:
+    profiles: [observability, all]
+    image: otel/opentelemetry-collector-contrib:0.114.0
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ./infra/observability/otel-collector/config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - jaeger
 
 volumes:
   postgres_data:

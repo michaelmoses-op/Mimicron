@@ -13,7 +13,7 @@ func TestEventTelemetryOK(t *testing.T) {
 		DeviceID:  "dev-1",
 		EventTime: time.Now().UTC().Format(time.RFC3339),
 		Kind:      "telemetry",
-		Data:      map[string]jsonNumber("temperature_c", "21.5"),
+		Data:      jsonNumber("temperature_c", "21.5"),
 	}
 	env, err := Event(ev, nil)
 	if err != nil {

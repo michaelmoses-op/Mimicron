@@ -11,6 +11,8 @@ Multi-tenant platform for **simulated device fleets and synthetic traffic** ("Tw
 | Repo layout | [docs/repo-layout.md](docs/repo-layout.md) |
 | Agent / milestone guide | [AGENTS.md](AGENTS.md) |
 | CI/CD & releases | [docs/ci.md](docs/ci.md) |
+| Deployment | [docs/deployment.md](docs/deployment.md) |
+| Observability | [docs/observability.md](docs/observability.md) |
 | Contracts | [contracts/](contracts/) |
 
 ## Prerequisites
@@ -44,6 +46,7 @@ Service ports: control-api `8000`, ingestion-gateway `8081`, stream-gateway `808
 - **M4 (sim + scenarios/runs):** control-api scenarios/runs/telemetry, sim-engine, `make demo`
 - **M5 (dashboard + SSE):** SvelteKit UI on `:5173`, stream-gateway SSE on `:8082`, scenarios list + start run, run stop/refresh
 - **M6 (traffic):** sim-engine traffic profiles + `scale_traffic`, stream-processor `traffic_rollups_10s`, `GET /v1/traffic`, dashboard `/traffic` (see `docs/backlog.md` for M6 follow-ups)
-- **M7 (CI/CD):** path-filtered unit CI, Compose integration + k6, GHCR image publish with Trivy + SBOM — see [docs/ci.md](docs/ci.md)
-- **Next milestone:** **M8** — observability + single-VM deployment (per [AGENTS.md](AGENTS.md) §5)
+- **M7 (CI/CD):** path-filtered unit CI, Compose integration + k6, GHCR image publish — [docs/ci.md](docs/ci.md)
+- **M8 (observability + deploy):** Prometheus/Grafana/Jaeger/OTel, Caddy prod overlay, VM bootstrap notes — [docs/observability.md](docs/observability.md), [docs/deployment.md](docs/deployment.md)
+- **Portfolio follow-ups:** fill [docs/load-test-results.md](docs/load-test-results.md); deeper OTel in all services (`docs/backlog.md`)
 - **Smoke test:** [tests/e2e/INGEST.md](tests/e2e/INGEST.md) or `make demo` after `make up`

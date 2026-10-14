@@ -150,7 +150,8 @@ mimicron/
         ├── 0005-narrow-measurement-schema.md
         ├── 0006-no-cassandra.md
         ├── 0007-cloud-neutral-deployment.md
-        └── 0008-ci-ghcr-trivy.md
+        ├── 0008-ci-ghcr-trivy.md
+        └── 0009-observability-and-edge.md
 ```
 
 ## Ports (local)

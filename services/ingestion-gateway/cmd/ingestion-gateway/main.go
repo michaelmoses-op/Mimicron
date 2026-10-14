@@ -15,6 +15,7 @@ import (
 	"github.com/mimicron/mimicron/services/ingestion-gateway/internal/auth"
 	"github.com/mimicron/mimicron/services/ingestion-gateway/internal/httpapi"
 	"github.com/mimicron/mimicron/services/ingestion-gateway/internal/kafka"
+	"github.com/mimicron/mimicron/services/ingestion-gateway/internal/metrics"
 )
 
 func main() {
@@ -62,11 +63,8 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		_ = jsonReady(w, checks)
 	})
-	mux.HandleFunc("/metrics", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		_, _ = w.Write([]byte("# TYPE up gauge\nup 1\n"))
-	})
-	mux.HandleFunc("/v1/ingest", handler.Ingest)
+	mux.Handle("/metrics", metrics.Handler())
+	mux.Handle("/v1/ingest", metrics.Instrument(http.HandlerFunc(handler.Ingest)))
 
 	srv := &http.Server{Addr: cfg.HTTPAddr, Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 

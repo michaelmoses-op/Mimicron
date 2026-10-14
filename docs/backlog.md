@@ -1,3 +1,13 @@
+# Backlog (post M8 slice)
+
+## M8 follow-ups
+
+- Full OTel SDK in Go/Rust services; stream-processor consume traceparent from Kafka
+- Prometheus metrics on all services (RED); consumer lag gauge
+- Automated status page (blackbox checks); Loki optional
+- Real provider Terraform (Hetzner/DO) calling generic modules
+- Record demo GIF and fill `docs/load-test-results.md`
+
 # Backlog (post M7 slice)
 
 ## M7 follow-ups
