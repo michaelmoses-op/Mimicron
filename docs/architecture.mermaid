@@ -29,7 +29,7 @@ flowchart LR
   PG[("PostgreSQL<br/>tenants, keys, scenarios, runs")]
   TS[("TimescaleDB<br/>measurements, anomalies, rollups")]
   RD[("Redis<br/>key cache, rate limits,<br/>usage counters")]
-  S3[("MinIO / S3<br/>archives, replay files")]
+  OBJ[("S3-compatible object storage<br/>MinIO locally")]
 
   USER --> DASH
   DASH -->|"REST + JWT"| API
@@ -60,5 +60,5 @@ flowchart LR
   T5 --> SG
   SG -->|"key lookup"| RD
 
-  SP -.->|"later: Parquet archive"| S3
-  S3 -.->|"later: time-travel replay"| SIM
+  SP -.->|"later: Parquet archive"| OBJ
+  OBJ -.->|"later: time-travel replay"| SIM

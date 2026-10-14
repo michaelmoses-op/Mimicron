@@ -7,7 +7,7 @@ ENV_FILE ?= .env
 infra:
 	$(COMPOSE) --env-file $(ENV_FILE) --profile infra up -d
 	@echo "Waiting for init jobs (topics, bucket, migrations)..."
-	$(COMPOSE) --env-file $(ENV_FILE) --profile infra up timescale-migrate redpanda-init minio-init
+	$(COMPOSE) --env-file $(ENV_FILE) --profile infra up timescale-migrate redpanda-init object-store-init
 
 up:
 	$(COMPOSE) --env-file $(ENV_FILE) --profile all up -d --build

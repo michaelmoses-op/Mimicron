@@ -7,3 +7,5 @@ cd services/sim-engine
 go test ./...
 go run ./cmd/sim-engine
 ```
+
+Replay archives (not implemented yet) will use `S3_*` env vars; see `internal/objectstore/config.go`.

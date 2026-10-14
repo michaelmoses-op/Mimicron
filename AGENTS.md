@@ -22,7 +22,8 @@ It also accepts data from real external sources via the same ingestion API.
   - `stream-processor`: **Rust**. This is the **only** Rust service. It does validation, dedupe, batch writes to TimescaleDB, anomaly detection, traffic rollups.
   - `stream-gateway`: **Node / Express / TypeScript** (SSE fan-out; WebSocket later)
   - `dashboard`: **SvelteKit** (Svelte 5, TypeScript, Tailwind)
-- **Datastores:** PostgreSQL (metadata), TimescaleDB (telemetry; separate instance), Redis (key cache, rate limits, usage counters), MinIO/S3 (later: archives/replay). **No Cassandra. No other databases** unless I explicitly approve.
+- **Datastores:** PostgreSQL (metadata), TimescaleDB (telemetry; separate instance), Redis (key cache, rate limits, usage counters), S3-compatible object storage (MinIO locally; later: archives/replay). **No Cassandra. No other databases** unless I explicitly approve.
+- **Cloud-neutral deployment.** Object storage is accessed only via the **S3-compatible API** with a configurable endpoint (`S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_FORCE_PATH_STYLE`). No provider-specific SDKs or managed cloud services (RDS, MSK, ElastiCache, etc.) in the default architecture. First production target: **Docker Compose on a generic Linux VM**; provider-specific Terraform under `infra/terraform/providers/`.
 - **Messaging:** Redpanda (Kafka API). Topics: `sim.commands`, `sim.events`, `telemetry.raw`, `telemetry.processed`, `anomalies.detected`, `telemetry.dlq`.
 - **Monorepo** with layout in `docs/repo-layout.md`.
 - **Contract-first:** `/contracts` holds OpenAPI (`control-api.yaml`, `data-plane.yaml`), the scenario JSON Schema, and event definitions. Code follows contracts.
@@ -49,7 +50,7 @@ If these files conflict with each other, tell me, propose the fix, and update th
 ## 4. Later features (design for them now, build them later)
 
 1. **Chaos / fault injection** (drop, duplicate, delay/late/out-of-order, clock skew, schema drift, corrupt). It will live in `sim-engine/internal/chaos` as emitter middleware; the scenario schema already reserves `spec.chaos`. For now: define the Go interface and a no-op implementation, and make sure events carry `event_id` and `seq` so chaos effects are detectable downstream.
-2. **Time travel / replay:** stream-processor archives Parquet to MinIO; sim-engine gets a replay source. Scenario `time.mode` already supports `accelerated` and `backfill`. Implement `accelerated` and `backfill` in the virtual clock from the start (they are just clock behavior).
+2. **Time travel / replay:** stream-processor archives Parquet to S3-compatible object storage; sim-engine gets a replay source. Scenario `time.mode` already supports `accelerated` and `backfill`. Implement `accelerated` and `backfill` in the virtual clock from the start (they are just clock behavior).
 3. **Reference app:** a small app under `/examples` built only on the public API/SDK (for example an anomaly monitor that evaluates detector precision/recall against ground-truth labels).
 Not planned: Kubernetes/GitOps (first target is Docker Compose plus Terraform on a single VM), Cassandra, billing, multi-region.
 
@@ -59,7 +60,7 @@ Work **one milestone at a time**. At the end of each: summarize what you built, 
 
 **M0: Foundation**
 - Create the monorepo skeleton per `docs/repo-layout.md` (empty service stubs with Dockerfiles, health endpoints, READMEs).
-- `docker-compose.yml`: Redpanda (+ Console), Postgres, TimescaleDB, Redis, MinIO; init containers that create topics and buckets; `.env.example`; `Makefile`.
+- `docker-compose.yml`: Redpanda (+ Console), Postgres, TimescaleDB, Redis, S3-compatible object storage; init containers that create topics and buckets; `.env.example`; `Makefile`.
 - Create `contracts/events/envelope.schema.json` and `topics.md`.
 - Timescale migrations from `docs/architecture.md` section 5.2 plus a tiny migration runner.
 - CI skeleton with path-filtered lint/test jobs per service; a contracts job that validates the OpenAPI files and the JSON Schema (and validates the example scenario against the schema).
@@ -99,7 +100,7 @@ Work **one milestone at a time**. At the end of each: summarize what you built, 
 - GitHub Actions: lint, test (race detector for Go), build, image scan (Trivy), SBOM, push to GHCR on main, compose-based e2e job, k6 load test job with thresholds. Dependabot. Version/tag strategy. Branch protection notes in docs.
 
 **M8: Observability and deployment**
-- OpenTelemetry tracing across HTTP and Kafka headers, Prometheus metrics, Grafana dashboards (per-service RED + pipeline lag + platform SLOs), Terraform for a single-VM deployment with Compose (TLS via Caddy), staging/prod environments, public status page, README with architecture diagram, demo GIF script, and a published load-test result.
+- OpenTelemetry tracing across HTTP and Kafka headers, Prometheus metrics, Grafana dashboards (per-service RED + pipeline lag + platform SLOs), Terraform for a **single-VM deployment on a provider of your choosing** (provider-specific code isolated under `infra/terraform/providers/`) with Compose (TLS via Caddy), staging/prod environments, public status page, README with architecture diagram, demo GIF script, and a published load-test result.
 
 **Then (when I ask):** chaos/fault injection, time travel/replay, reference app, SDKs (Python, TypeScript), webhooks.
 

@@ -22,4 +22,5 @@ Items deferred from AGENTS milestones; not blocking local demo.
 
 ## Infra
 
-- Long-term object storage: MinIO CE images removed from Docker Hub; local compose uses RustFS. Revisit mirror/pin strategy before archive/replay (M8).
+- Archive/replay: wire `S3_*` clients in stream-processor and sim-engine (config stubs exist)
+- Optional: restore official MinIO images in compose when Docker Hub publishes them again; RustFS remains a valid S3-compatible dev target

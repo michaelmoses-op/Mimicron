@@ -11,3 +11,5 @@ cargo run
 ```
 
 Env: `KAFKA_BROKERS`, `TIMESCALE_URL`, topic names (see `src/config.rs`).
+
+S3-compatible archives (not implemented yet): `S3_ENDPOINT`, `S3_REGION` (default `us-east-1`), `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_FORCE_PATH_STYLE` (default `true`). See `src/s3_config.rs`.

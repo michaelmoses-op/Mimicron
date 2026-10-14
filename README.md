@@ -22,15 +22,17 @@ Multi-tenant platform for **simulated device fleets and synthetic traffic** ("Tw
 
 ```bash
 cp .env.example .env
-make infra    # Postgres, Timescale, Redis, Redpanda, MinIO + topic/bucket/migrate init
-make up       # infra + service stubs (health endpoints)
+make infra    # Postgres, Timescale, Redis, Redpanda, object store + topic/bucket/migrate init
+make up       # infra + all services
 make contracts
 make test
 ```
 
-Service ports: control-api `8000`, ingestion-gateway `8081`, stream-gateway `8082`, Redpanda Kafka `19092`, Timescale `5433`.
+Service ports: control-api `8000`, ingestion-gateway `8081`, stream-gateway `8082`, Redpanda Kafka `19092`, Timescale `5433`, S3-compatible API `9000`.
 
-**Object storage:** Compose uses [RustFS](https://rustfs.com/) (`rustfs/rustfs`) on ports `9000`/`9001` because official `minio/minio` and `minio/mc` images were removed from Docker Hub. Env vars still use the `MINIO_*` prefix; the service name remains `minio` on the Docker network. During `make infra`, the one-shot `minio-init` container prints `S3 bucket mimicron-archives ready` — that is normal (creates the archive bucket for a later replay milestone; the live demo does not use it yet).
+**Object storage:** Local compose runs an **S3-compatible** server (`object-store` service). Official MinIO Docker images were removed from Docker Hub; we use **RustFS** as a API-compatible stand-in until MinIO images are available again. Configure with `S3_ENDPOINT`, `S3_REGION`, `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `S3_FORCE_PATH_STYLE` (see `.env.example`). The same variables work with Cloudflare R2, Backblaze B2, DigitalOcean Spaces, GCS interoperability, or AWS S3. During `make infra`, `object-store-init` prints that the archive bucket is ready — normal for a later replay milestone; the live demo does not use it yet.
+
+**Deployment stance:** First production target is **Docker Compose on a generic Linux VM** (any provider). See [ADR 0007](docs/adr/0007-cloud-neutral-deployment.md).
 
 ## Milestone status
 

@@ -35,7 +35,7 @@ flowchart LR
   PG[("PostgreSQL")]
   TS[("TimescaleDB")]
   RD[("Redis")]
-  S3[("MinIO / S3")]
+  OBJ[("S3-compatible object storage<br/>MinIO locally")]
   USER --> DASH
   DASH -->|"REST + JWT"| API
   DASH -->|"SSE"| SG
@@ -61,11 +61,13 @@ flowchart LR
   T4 --> SG
   T5 --> SG
   SG --> RD
-  SP -.->|"later"| S3
-  S3 -.->|"later"| SIM
+  SP -.->|"later"| OBJ
+  OBJ -.->|"later"| SIM
 ```
 
 ## 2. Design principles
+
+0. **Cloud-neutral ops (first deployment).** Production target is **Docker Compose on a generic Linux VM** (any host: Hetzner, DigitalOcean, Linode, GCP, Azure, home lab). All datastores and messaging run as **self-hosted containers** (PostgreSQL, TimescaleDB, Redis, Redpanda, S3-compatible object storage). Object storage is accessed only via the **S3-compatible API** with a configurable endpoint (`S3_*` env vars). No managed AWS services (RDS, MSK, ElastiCache, etc.) and no provider-specific SDK assumptions in application code. Kubernetes/GitOps is a later stage, not the first ship target.
 
 1. **Dogfooding.** The simulator sends data through the *public* ingestion gateway exactly as an external device would. Anything an outside developer can do, the simulator does.
 2. **Tenant isolation everywhere.** `tenant_id` is derived from credentials server-side, never trusted from request bodies. It is on every row, in every Kafka key, and in every cache key.
@@ -117,7 +119,7 @@ flowchart LR
 | **PostgreSQL** | Tenants, users, memberships, API keys, quotas, scenarios + versions, runs, ground-truth labels, daily usage | Relational integrity, transactions |
 | **TimescaleDB** (separate instance from metadata Postgres) | Telemetry, anomalies, traffic rollups, device registry | Time-series: hypertables, compression, continuous aggregates, retention. Same SQL dialect as Postgres. |
 | **Redis** | API-key cache, rate-limit buckets, usage counters (flushed to Postgres), optional last-known device state | Fast ephemeral state |
-| **MinIO (S3)** | *Later:* Parquet archives per tenant/run/day; replay sources for time travel | Cheap durable storage |
+| **S3-compatible object storage** (MinIO in local compose when available) | *Later:* Parquet archives per tenant/run/day; replay sources for time travel | Cheap durable storage; same API on R2, B2, Spaces, GCS interoperability, or AWS |
 
 No Cassandra. If analytics workloads outgrow Timescale later, evaluate ClickHouse and record it in an ADR.
 
@@ -231,6 +233,6 @@ Detectors are a Rust trait (`Detector`), so new ones are easy to add. Ground-tru
 ## 9. Later features (design hooks already in place)
 
 - **Chaos/fault injection**: implemented in `sim-engine/internal/chaos` as an emitter middleware (drop, duplicate, delay, reorder, clock skew, schema drift, corrupt). Scenario schema already reserves `spec.chaos`.
-- **Time travel / replay**: stream-processor archives Parquet to S3; sim-engine gets a `replay` source that reads archives at 1x to Nx speed. Scenario `spec.time.mode` already supports `accelerated` and `backfill`.
+- **Time travel / replay**: stream-processor archives Parquet to S3-compatible object storage (`S3_*` config); sim-engine gets a `replay` source that reads archives at 1x to Nx speed. Scenario `spec.time.mode` already supports `accelerated` and `backfill`.
 - **Reference app**: e.g., an anomaly-detection monitoring app consuming only the public API/SDK, in `/examples`.
 - **Webhooks**, MQTT/WebSocket device protocols, Python/TS SDKs.

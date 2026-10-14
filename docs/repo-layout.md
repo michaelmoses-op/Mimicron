@@ -122,9 +122,9 @@ mimicron/
 │   └── examples/                 # smart-building-heatwave.yaml, ev-charging.yaml, api-traffic.yaml
 │
 ├── infra/
-│   ├── docker/                   # shared base images, init scripts (redpanda topics, minio buckets)
+│   ├── docker/                   # init scripts (redpanda topics, S3-compatible bucket)
 │   ├── observability/            # prometheus.yml, grafana dashboards, otel-collector.yaml
-│   ├── terraform/                # modules: network, vm, dns, s3; envs: staging, prod
+│   ├── terraform/                # modules/ (network, vm, object-storage); providers/<name>/ roots
 │   └── k8s/                      # later (kustomize / helm + ArgoCD)
 │
 ├── tests/
@@ -148,7 +148,8 @@ mimicron/
         ├── 0003-timescale-for-telemetry.md
         ├── 0004-rust-only-for-stream-processor.md
         ├── 0005-narrow-measurement-schema.md
-        └── 0006-no-cassandra.md
+        ├── 0006-no-cassandra.md
+        └── 0007-cloud-neutral-deployment.md
 ```
 
 ## Ports (local)
@@ -163,7 +164,7 @@ mimicron/
 | TimescaleDB | 5433 |
 | Redis | 6379 |
 | Redpanda (Kafka API / Console) | 19092 / 8080 |
-| MinIO (API / Console) | 9000 / 9001 |
+| S3-compatible object storage (API / console) | 9000 / 9001 |
 | Prometheus / Grafana | 9090 / 3001 |
 
 ## Makefile targets (minimum)
