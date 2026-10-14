@@ -123,6 +123,10 @@ class Run(Base):
     error: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+    scenario_version: Mapped[ScenarioVersion | None] = relationship(
+        foreign_keys=[scenario_version_id],
+    )
+
 
 class GroundTruthLabel(Base):
     __tablename__ = "ground_truth_labels"
