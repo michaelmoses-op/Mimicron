@@ -32,7 +32,7 @@ jobs:
           - service: dashboard
             context: dashboard
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Lowercase image name
         id: image
