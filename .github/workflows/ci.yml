@@ -19,7 +19,7 @@ jobs:
       node_gateway: ${{ steps.filter.outputs.node_gateway }}
       dashboard: ${{ steps.filter.outputs.dashboard }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v3
         id: filter
         with:
@@ -49,7 +49,7 @@ jobs:
       run:
         working-directory: services/control-api
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -65,7 +65,7 @@ jobs:
       run:
         working-directory: services/sim-engine
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
@@ -80,7 +80,7 @@ jobs:
       run:
         working-directory: services/ingestion-gateway
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v5
         with:
           go-version: "1.23"
@@ -95,7 +95,7 @@ jobs:
       run:
         working-directory: services/stream-processor
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: dtolnay/rust-toolchain@1.89
       - run: cargo fmt --check
       - run: cargo clippy -- -D warnings
@@ -109,7 +109,7 @@ jobs:
       run:
         working-directory: services/stream-gateway
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -125,7 +125,7 @@ jobs:
       run:
         working-directory: dashboard
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
