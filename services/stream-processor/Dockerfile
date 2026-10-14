@@ -1,4 +1,5 @@
-FROM rust:1.81-bookworm AS build
+# 1.81 is too old for current crates.io (e.g. idna_adapter needs edition 2024 / Cargo 1.85+).
+FROM rust:1.85-bookworm AS build
 RUN apt-get update && apt-get install -y --no-install-recommends cmake libssl-dev pkg-config \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /src
